@@ -1,0 +1,9 @@
+﻿.env
+google_token.json
+credentials.json
+.venv/
+.venv-1/
+__pycache__/
+*.pyc
+.pytest_cache/
+frontend/config.local.js

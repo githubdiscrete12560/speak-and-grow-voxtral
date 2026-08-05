@@ -1,0 +1,829 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#5b67d8" />
+  <title>Speak & Grow | Children's Speech Practice</title>
+  <style>
+    :root{
+      --primary:#5b67d8; --primary-dark:#424bb2; --accent:#ffb84d;
+      --mint:#daf6ea; --lavender:#eef0ff; --ink:#243047;
+      --muted:#667085; --surface:#ffffff; --bg:#f7f8fc;
+      --success:#1b8a5a; --danger:#c23a4b; --border:#dfe3ee;
+      --shadow:0 14px 34px rgba(48,55,100,.12);
+    }
+    *{box-sizing:border-box}
+    html{scroll-behavior:smooth}
+    body{margin:0;font-family:Inter,ui-rounded,"Segoe UI",Arial,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
+    button,input,select,textarea{font:inherit}
+    button{cursor:pointer}
+    a{color:inherit}
+    .skip{position:absolute;left:-999px;top:0;background:#fff;padding:.7rem;z-index:100}
+    .skip:focus{left:.5rem}
+    header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
+    .nav-wrap{max-width:1180px;margin:auto;padding:.75rem 1rem;display:flex;align-items:center;gap:1rem}
+    .brand{display:flex;align-items:center;gap:.75rem;font-weight:800;white-space:nowrap}
+    .logo{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:var(--lavender);font-size:1.5rem}
+    nav{margin-left:auto;display:flex;gap:.35rem;overflow-x:auto;padding-bottom:.15rem}
+    .tab{border:0;background:transparent;color:var(--muted);padding:.7rem .9rem;border-radius:12px;white-space:nowrap;font-weight:650}
+    .tab:hover,.tab:focus-visible{background:var(--lavender);color:var(--primary-dark)}
+    .tab.active{background:var(--primary);color:#fff}
+    main{max-width:1180px;margin:auto;padding:1.4rem 1rem 3rem}
+    .panel{display:none;animation:fade .25s ease}
+    .panel.active{display:block}
+    @keyframes fade{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:none}}
+    .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:1.2rem;align-items:stretch}
+    .hero-copy,.hero-art,.card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:clamp(1.2rem,3vw,2.3rem);box-shadow:var(--shadow)}
+    .eyebrow{display:inline-flex;background:var(--mint);color:#176244;border-radius:999px;padding:.35rem .75rem;font-size:.9rem;font-weight:750}
+    h1,h2,h3{line-height:1.18;margin-top:0}
+    h1{font-size:clamp(2.05rem,5vw,4.2rem);margin:.8rem 0 1rem}
+    h2{font-size:clamp(1.65rem,3vw,2.55rem)}
+    h3{font-size:1.2rem}
+    .lead{font-size:1.1rem;color:var(--muted);max-width:65ch}
+    .actions{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:1.3rem}
+    .btn{border:0;border-radius:14px;padding:.85rem 1.05rem;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:.45rem;text-decoration:none}
+    .btn.primary{background:var(--primary);color:#fff}
+    .btn.primary:hover{background:var(--primary-dark)}
+    .btn.secondary{background:var(--lavender);color:var(--primary-dark)}
+    .btn.warning{background:var(--accent);color:#4b3200}
+    .btn:disabled{opacity:.5;cursor:not-allowed}
+    .mascot{min-height:315px;display:grid;place-items:center;background:linear-gradient(145deg,var(--lavender),#fff7e7);position:relative;overflow:hidden}
+    .face{width:190px;height:190px;border-radius:50%;background:#ffd7b8;position:relative;box-shadow:inset 0 -8px rgba(0,0,0,.04)}
+    .eye{position:absolute;top:65px;width:14px;height:18px;background:#2d3048;border-radius:50%}
+    .eye.left{left:52px}.eye.right{right:52px}
+    .mouth{position:absolute;left:50%;top:112px;transform:translateX(-50%);width:48px;height:34px;background:#9c3851;border:7px solid #fff;border-radius:50%}
+    .mouth.speaking{animation:talk .5s infinite alternate}
+    @keyframes talk{to{height:55px;width:38px}}
+    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:1rem}
+    .two{grid-template-columns:repeat(2,1fr)}
+    .mini{padding:1.25rem}
+    .icon{font-size:2rem;margin-bottom:.6rem}
+    .section-head{margin-bottom:1rem}
+    .profile{display:grid;grid-template-columns:270px 1fr;gap:1.3rem}
+    .portrait{min-height:320px;background:linear-gradient(160deg,var(--lavender),var(--mint));display:grid;place-items:center;text-align:center}
+    .avatar{font-size:6rem}
+    .badge{display:inline-flex;border-radius:999px;background:var(--mint);color:#176244;padding:.3rem .65rem;font-weight:700;font-size:.88rem}
+    .credentials{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+    .notice{border-left:5px solid var(--accent);background:#fff8e8;padding:1rem;border-radius:12px;margin:1rem 0}
+    .clinical{border-color:var(--primary);background:var(--lavender)}
+    .sound-board{display:grid;grid-template-columns:.8fr 1.2fr;gap:1rem}
+    .sound-symbol{font-size:clamp(6rem,18vw,11rem);text-align:center;color:var(--primary);font-weight:900}
+    .steps{counter-reset:step;padding:0;list-style:none}
+    .steps li{counter-increment:step;display:grid;grid-template-columns:36px 1fr;gap:.7rem;margin:.75rem 0;align-items:start}
+    .steps li:before{content:counter(step);display:grid;place-items:center;width:32px;height:32px;background:var(--primary);color:white;border-radius:50%;font-weight:800}
+    .video-box{aspect-ratio:16/9;background:#21283c;color:white;border-radius:18px;display:grid;place-items:center;text-align:center;padding:1rem}
+    .video-box .play{font-size:4rem}
+    .practice-row{display:flex;gap:.65rem;flex-wrap:wrap;align-items:center}
+    .meter{height:14px;background:#e9ebf2;border-radius:999px;overflow:hidden;margin:.8rem 0}
+    .meter>div{height:100%;width:0;background:var(--primary);transition:width .2s}
+    .game-layout{display:grid;grid-template-columns:1.25fr .75fr;gap:1rem}
+    .camera-wrap{position:relative;background:#1d2332;border-radius:22px;overflow:hidden;min-height:430px;display:grid;place-items:center;color:white}
+    video{width:100%;height:100%;object-fit:cover;position:absolute;inset:0}
+    .ar-overlay{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none}
+    .target-orb{width:180px;height:180px;border:5px dashed rgba(255,255,255,.9);border-radius:50%;display:grid;place-items:center;background:rgba(91,103,216,.25);font-size:5rem;font-weight:900;text-shadow:0 2px 4px #000}
+    .camera-placeholder{padding:2rem;text-align:center;max-width:45ch}
+    .status{padding:.8rem;border-radius:12px;background:var(--lavender);margin:.7rem 0}
+    .status.good{background:var(--mint);color:#176244}
+    .status.bad{background:#ffe8eb;color:#8c2635}
+    .stars{font-size:2rem;letter-spacing:.15rem}
+    .privacy{font-size:.9rem;color:var(--muted)}
+    .donation{display:grid;grid-template-columns:1fr .8fr;gap:1rem}
+    .amounts{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem}
+    .amount{border:2px solid var(--border);background:white;border-radius:14px;padding:.8rem;font-weight:800}
+    .amount.selected{border-color:var(--primary);background:var(--lavender);color:var(--primary-dark)}
+    label{display:block;font-weight:700;margin-top:.8rem}
+    input,select,textarea{width:100%;border:1px solid var(--border);border-radius:12px;padding:.8rem;background:white;margin-top:.3rem}
+    footer{text-align:center;color:var(--muted);padding:2rem 1rem;border-top:1px solid var(--border)}
+    .small{font-size:.9rem;color:var(--muted)}
+
+    .race-scene{
+      position:relative; width:100%; min-height:430px; overflow:hidden;
+      border-radius:22px; background:linear-gradient(#cdeeff 0 58%,#dff5c9 58% 73%,#8b6b50 73%);
+      color:var(--ink);
+    }
+    .race-sky{position:absolute;inset:0 0 42% 0;background:linear-gradient(#bde7ff,#effaff)}
+    .race-cloud{position:absolute;font-size:3rem;opacity:.9}
+    .race-cloud.one{left:8%;top:10%}.race-cloud.two{right:12%;top:18%}
+    .race-track{
+      position:absolute;left:6%;right:6%;bottom:10%;height:112px;border-radius:60px;
+      background:#c7926e;border:5px solid rgba(255,255,255,.65);overflow:visible;
+    }
+    .race-track::after{
+      content:"";position:absolute;left:3%;right:3%;top:50%;border-top:4px dashed rgba(255,255,255,.85)
+    }
+    .start-label,.goal-label{
+      position:absolute;bottom:calc(10% + 120px);font-weight:800;background:#fff;
+      border:1px solid var(--border);border-radius:999px;padding:.25rem .65rem
+    }
+    .start-label{left:6%}.goal-label{right:5%}
+    .goal-flag{position:absolute;right:7%;bottom:calc(10% + 42px);font-size:4rem;z-index:3}
+    .runner{
+      position:absolute;left:calc(6% - 18px);bottom:calc(10% + 42px);font-size:3.6rem;
+      z-index:4;transform:translateX(-50%);transition:left 1s cubic-bezier(.22,.85,.26,1);
+      filter:drop-shadow(0 5px 3px rgba(0,0,0,.18))
+    }
+    .runner-graphic{display:inline-block;transform:scaleX(-1)}
+    .runner.running{animation:runnerBounce .22s alternate 5}
+    @keyframes runnerBounce{to{transform:translateX(-50%) translateY(-13px) rotate(-5deg)}}
+    .score-display{display:flex;align-items:end;gap:.6rem;margin:.8rem 0}
+    .score-number{font-size:3rem;font-weight:900;color:var(--primary);line-height:1}
+    .score-track{height:16px;background:#e9ebf2;border-radius:999px;overflow:hidden}
+    .score-fill{height:100%;width:0;background:var(--primary);transition:width .8s ease}
+    .attempt-chips{display:flex;flex-wrap:wrap;gap:.4rem;margin:.5rem 0}
+    .attempt-chip{background:var(--lavender);border-radius:999px;padding:.25rem .6rem;font-size:.88rem}
+    .consultation-layout{display:grid;grid-template-columns:1.25fr .75fr;gap:1rem;align-items:start}
+    .consultation-preview{min-height:480px;background:linear-gradient(145deg,#202637,#303a52);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative;text-align:center;overflow:hidden}
+    .consultation-avatar{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,var(--lavender),var(--mint));color:var(--primary-dark);font-size:4.5rem;border:5px solid rgba(255,255,255,.2)}
+    .preview-message{max-width:38rem;margin:1.3rem 1rem 5.5rem;color:#e7eaf4}
+    .call-controls{position:absolute;bottom:1.5rem;display:flex;gap:.8rem}
+    .call-control{width:54px;height:54px;border:1px solid rgba(255,255,255,.25);border-radius:50%;background:#3e4659;color:#fff;font-size:1.25rem;display:grid;place-items:center}
+    .call-control.off{background:#b53647}
+    .consultation-details .detail-list{display:grid;grid-template-columns:auto 1fr;gap:.55rem 1rem;margin:1rem 0}
+    .consultation-details dt{font-weight:750}.consultation-details dd{margin:0;color:var(--muted)}
+    .appointment-card{margin-top:1rem;border:1px solid var(--border);background:#fafbff;border-radius:16px;padding:1rem}
+    .appointment-card h3{margin-bottom:.65rem}
+    .appointment-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+    .appointment-grid div{background:#fff;border:1px solid var(--border);border-radius:10px;padding:.65rem}
+    .appointment-grid strong{display:block;font-size:.8rem;color:var(--muted)}
+    .countdown{font-size:1.1rem;font-weight:800;text-align:center}
+    .consult-form{width:100%;text-align:left;color:var(--ink)}
+    .consult-form-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:0 1rem}
+    .consult-form .full{grid-column:1/-1}
+    .consent-row{display:flex;gap:.65rem;align-items:flex-start;font-weight:600}
+    .consent-row input{width:auto;margin-top:.35rem}
+
+    @media(max-width:850px){
+      .hero,.profile,.sound-board,.game-layout,.donation,.consultation-layout{grid-template-columns:1fr}
+      .grid,.grid.two{grid-template-columns:1fr}
+      .nav-wrap{align-items:flex-start;flex-direction:column}
+      nav{margin-left:0;width:100%}
+      .camera-wrap{min-height:360px}
+      .consultation-preview{min-height:390px}
+      .appointment-grid{grid-template-columns:1fr}
+      .consult-form-grid{grid-template-columns:1fr}.consult-form .full{grid-column:auto}
+    }
+  </style>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header>
+  <div class="nav-wrap">
+    <div class="brand"><span class="logo">ðŸ—£ï¸</span><span>Speak & Grow</span></div>
+    <nav aria-label="Main navigation">
+      <button class="tab active" data-tab="home">Home</button>
+      <button class="tab" data-tab="therapist">Certified Therapist</button>
+      <button class="tab" data-tab="lessons">Sound Lessons</button>
+      <button class="tab" data-tab="game">AR Speech Game</button>
+      <button class="tab" data-tab="donation">Donation</button>
+      <button class="tab" data-tab="consultation">Consultation</button>
+    </nav>
+  </div>
+</header>
+
+<main id="content">
+  <section id="home" class="panel active">
+    <div class="hero">
+      <div class="hero-copy">
+        <span class="eyebrow">Playful speech practice for children</span>
+        <h1>Small sounds.<br>Big confidence.</h1>
+        <p class="lead">A friendly practice space where children and caregivers can learn speech sounds, watch demonstrations, and play a voice-controlled AR-style game.</p>
+        <div class="actions">
+          <button class="btn primary jump" data-target="lessons">Start the â€œeâ€ lesson</button>
+          <button class="btn secondary jump" data-target="therapist">Meet the therapist</button>
+        </div>
+        <div class="notice clinical"><strong>Important:</strong> This educational website does not diagnose or replace assessment or treatment by a licensed speech-language professional.</div>
+      </div>
+      <div class="hero-art mascot" aria-label="Smiling child illustration">
+        <div class="face">
+          <span class="eye left"></span><span class="eye right"></span>
+          <span class="mouth speaking"></span>
+        </div>
+      </div>
+    </div>
+    <div class="grid">
+      <article class="card mini"><div class="icon">ðŸ‘‚</div><h3>Listen</h3><p>Hear a clear sound model before trying it.</p></article>
+      <article class="card mini"><div class="icon">ðŸªž</div><h3>Watch</h3><p>Observe mouth shape, tongue position, and airflow.</p></article>
+      <article class="card mini"><div class="icon">ðŸŽ®</div><h3>Practice</h3><p>Use encouraging gamesâ€”not gradesâ€”to repeat the sound.</p></article>
+    </div>
+  </section>
+
+  <section id="therapist" class="panel">
+    <div class="section-head"><span class="eyebrow">Professional support</span><h2>Certified therapist profile</h2></div>
+    <div class="profile">
+      <aside class="card portrait">
+        <div><div class="avatar">ðŸ‘©â€âš•ï¸</div><h3>Dr. Maya Example</h3><span class="badge">Profile placeholder</span></div>
+      </aside>
+      <article class="card">
+        <h2>Speech-Language Therapist</h2>
+        <p class="lead">Special interest in early speech development, speech-sound practice, family coaching, and play-based learning.</p>
+        <div class="credentials">
+          <span class="badge">Professional license: add ID</span>
+          <span class="badge">Certification: add credential</span>
+          <span class="badge">Child safeguarding trained</span>
+        </div>
+        <h3>About the therapist</h3>
+        <p>Replace this sample profile with the therapistâ€™s verified name, qualifications, license number, issuing organization, clinical experience, languages, and contact details.</p>
+        <h3>Approach</h3>
+        <p>Sessions are child-centered and adapted to the childâ€™s age, communication needs, language background, interests, and clinician-approved goals.</p>
+        <div class="notice"><strong>Verification requirement:</strong> Do not publish â€œcertifiedâ€ or â€œlicensedâ€ claims until the credentials have been checked with the relevant professional authority.</div>
+        <button class="btn primary jump" data-target="game">Try the practice game</button>
+      </article>
+    </div>
+  </section>
+
+  <section id="lessons" class="panel">
+    <div class="section-head"><span class="eyebrow">Basic vowel lesson</span><h2>How to pronounce the â€œeâ€ sound</h2><p class="lead">This demo uses the English long â€œeâ€ sound, as in <strong>see</strong>. A clinician should adapt the target to the childâ€™s language and therapy plan.</p></div>
+    <div class="sound-board">
+      <article class="card">
+        <div class="sound-symbol">e</div>
+        <div class="practice-row">
+          <button id="hearSound" class="btn primary">ðŸ”Š Hear â€œeeâ€</button>
+          <button id="hearWord" class="btn secondary">ðŸ”Š Hear â€œseeâ€</button>
+        </div>
+      </article>
+      <article class="card">
+        <h3>Mouth guide</h3>
+        <ol class="steps">
+          <li><span>Smile gently and keep the jaw relaxed.</span></li>
+          <li><span>Raise the front of the tongue toward the roof of the mouth without touching it.</span></li>
+          <li><span>Keep the sound smooth and voiced: â€œeeee.â€</span></li>
+          <li><span>Try it in a word: â€œsee.â€</span></li>
+        </ol>
+        <div class="notice">Avoid forcing the childâ€™s mouth or tongue. Stop if the activity causes discomfort or distress.</div>
+      </article>
+    </div>
+    <div class="grid two">
+      <article class="card">
+        <h3>Demonstration clip</h3>
+        <div class="video-box">
+          <div><div class="play">â–¶</div><strong>Add a therapist-approved video here</strong><br><span class="small" style="color:#d8dcff">MP4, YouTube embed, or secure media library</span></div>
+        </div>
+      </article>
+      <article class="card">
+        <h3>Gentle practice routine</h3>
+        <p>Use 3â€“5 playful attempts, then pause. Praise effort rather than demanding perfect accuracy.</p>
+        <div class="meter" aria-label="Practice progress"><div id="practiceBar"></div></div>
+        <p id="practiceText">0 of 5 practice turns</p>
+        <button id="practiceDone" class="btn warning">â­ I tried the sound</button>
+      </article>
+    </div>
+  </section>
+
+  <section id="game" class="panel">
+    <div class="section-head">
+      <span class="eyebrow">Voxtral realtime prototype</span>
+      <h2>â€œRun to the Goalâ€ vowel game</h2>
+      <p class="lead">Press start and pronounce the English long <strong>â€œe / eeâ€</strong> sound. The runner moves along the track according to a 0â€“100 prototype matching score. A score of 100 reaches the goal.</p>
+    </div>
+
+    <div class="game-layout">
+      <div class="race-scene" role="img" aria-label="A runner moving from the start line toward a goal flag">
+        <div class="race-sky"></div>
+        <div class="race-cloud one">â˜ï¸</div>
+        <div class="race-cloud two">â˜ï¸</div>
+        <div class="start-label">START</div>
+        <div class="goal-label">GOAL</div>
+        <div class="race-track"></div>
+        <div class="goal-flag">ðŸ</div>
+        <div id="runner" class="runner" aria-hidden="true">
+          <span class="runner-graphic">ðŸƒ</span>
+        </div>
+      </div>
+
+      <aside class="card">
+        <h3>Pronunciation controls</h3>
+        <p class="small"><strong>Model:</strong> mistralai/Voxtral-Mini-4B-Realtime-2602</p>
+
+        <label for="targetVowel">Target sound</label>
+        <select id="targetVowel">
+          <option value="e">Long e â€” â€œeeâ€ as in â€œseeâ€</option>
+        </select>
+
+        <div class="actions">
+          <button id="listenBtn" class="btn primary">ðŸŽ¤ Start pronunciation</button>
+          <button id="stopListenBtn" class="btn secondary" disabled>â¹ Stop and score</button>
+        </div>
+
+        <div id="gameStatus" class="status" aria-live="polite">Ready. The backend must be running and connected to Mistral.</div>
+
+        <div class="score-display">
+          <span id="scoreNumber" class="score-number">0%</span>
+          <span>matching score</span>
+        </div>
+        <div class="score-track" role="progressbar" aria-label="Pronunciation matching score" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <div id="scoreFill" class="score-fill"></div>
+        </div>
+
+        <p><strong>Voxtral transcript:</strong> <span id="transcript">â€”</span></p>
+        <div id="attemptHistory" class="attempt-chips" aria-label="Attempt history"></div>
+
+        <p class="privacy">The browser sends temporary 16 kHz PCM audio to your own backend, which streams it to Voxtral. Keep the Mistral API key on the server. Obtain parent or guardian consent before processing a childâ€™s voice.</p>
+        <button id="resetGame" class="btn warning">Reset runner</button>
+      </aside>
+    </div>
+
+    <div class="notice clinical">
+      <strong>Scoring limitation:</strong> Voxtral is used here for realtime transcription. The displayed percentage is a transparent text-similarity game score based on the transcription; it is <strong>not</strong> a validated measurement of articulation, vowel formants, or clinical progress.
+    </div>
+  </section>
+
+  <section id="donation" class="panel">
+    <div class="section-head"><span class="eyebrow">Support access</span><h2>Donation</h2><p class="lead">Help fund clinician-reviewed learning materials, family workshops, accessible technology, and subsidized sessions.</p></div>
+    <div class="donation">
+      <article class="card">
+        <h3>Choose an amount</h3>
+        <div class="amounts">
+          <button class="amount" data-amount="10">$10</button>
+          <button class="amount selected" data-amount="25">$25</button>
+          <button class="amount" data-amount="50">$50</button>
+        </div>
+        <label for="customAmount">Custom amount (USD)</label>
+        <input id="customAmount" type="number" min="1" step="1" placeholder="Enter amount">
+        <label for="donorName">Name</label>
+        <input id="donorName" autocomplete="name" placeholder="Optional">
+        <label class="form-check" style="display:flex;gap:.55rem;align-items:flex-start;font-weight:500">
+          <input id="anonymous" type="checkbox" style="width:auto;margin-top:.35rem"> Make this donation anonymous
+        </label>
+        <button id="donateBtn" class="btn primary" style="margin-top:1rem">Continue to secure payment</button>
+        <div id="donationStatus" class="status" aria-live="polite">Demo onlyâ€”no payment processor is connected.</div>
+      </article>
+      <aside class="card">
+        <h3>Transparency</h3>
+        <p>A real donation page should clearly display:</p>
+        <ul>
+          <li>Registered organization name and number</li>
+          <li>How funds will be used</li>
+          <li>Refund and tax-receipt policies</li>
+          <li>Secure payment provider</li>
+          <li>Privacy policy and contact information</li>
+        </ul>
+        <div class="notice">Connect a trusted payment service only after the organization and donation process have been legally reviewed.</div>
+      </aside>
+    </div>
+  </section>
+
+  <section id="consultation" class="panel">
+    <div class="section-head">
+      <span class="eyebrow">Online professional support</span>
+      <h2>Book a speech consultation</h2>
+      <p class="lead">A parent or guardian can reserve an online appointment with a qualified speech-language therapist for professional guidance and support.</p>
+    </div>
+    <div class="consultation-layout">
+      <article class="card">
+        <form id="consultationForm" class="consult-form">
+          <div class="consult-form-grid">
+            <label for="guardianName">Guardian name<input id="guardianName" name="guardian_name" maxlength="120" required autocomplete="name"></label>
+            <label for="guardianEmail">Guardian email<input id="guardianEmail" name="guardian_email" type="email" required autocomplete="email"></label>
+            <label for="childDisplayName">Child display name (optional)<input id="childDisplayName" name="child_display_name" maxlength="80"></label>
+            <label for="childAgeRange">Child age range (optional)<select id="childAgeRange" name="child_age_range"><option value="">Prefer not to say</option><option>3â€“5 years</option><option>6â€“8 years</option><option>9â€“12 years</option><option>13â€“17 years</option></select></label>
+            <label class="full" for="consultationReason">Consultation reason<textarea id="consultationReason" name="consultation_reason" minlength="10" maxlength="1000" rows="4" required placeholder="Briefly describe the support you are seeking. Do not include highly sensitive medical details."></textarea></label>
+            <label for="appointmentDate">Appointment date<input id="appointmentDate" name="appointment_date" type="date" required></label>
+            <label for="appointmentTime">Appointment time<input id="appointmentTime" name="appointment_time" type="time" required></label>
+            <label for="consultationDuration">Duration<select id="consultationDuration" name="duration_minutes" required><option value="30">30 minutes</option><option value="45" selected>45 minutes</option><option value="60">60 minutes</option></select></label>
+            <label for="consultationTimezone">Time zone<input id="consultationTimezone" name="timezone" readonly></label>
+            <label class="full consent-row"><input id="consultationConsent" name="consent_confirmed" type="checkbox" required><span>I am the parent or guardian and consent to submitting this appointment request.</span></label>
+          </div>
+          <button id="bookConsultation" class="btn primary" type="submit" style="margin-top:1rem">Book appointment</button>
+        </form>
+        <div id="consultationStatus" class="status" aria-live="polite">Complete the form to request an appointment.</div>
+      </article>
+      <aside class="card consultation-details">
+        <span class="badge">Credential verification required</span>
+        <h3 style="margin-top:.8rem">Therapist name placeholder</h3>
+        <dl class="detail-list">
+          <dt>Credential</dt><dd>Verified speech-language therapist credential placeholder</dd>
+          <dt>Video</dt><dd>The actual consultation opens securely in Google Meet in a new tab.</dd>
+          <dt>Time zone</dt><dd>Appointment choices use your device's time zone.</dd>
+        </dl>
+        <div id="consultationCountdown" class="status countdown" aria-live="polite">No appointment booked</div>
+        <button id="joinConsultation" class="btn secondary" type="button" disabled>Join consultation</button>
+        <div id="appointmentCard" class="appointment-card" hidden>
+          <h3>Appointment confirmation</h3>
+          <div class="appointment-grid">
+            <div><strong>Start</strong><span id="appointmentStart">â€”</span></div>
+            <div><strong>End</strong><span id="appointmentEnd">â€”</span></div>
+            <div><strong>Therapist</strong><span id="appointmentTherapist">Therapist name placeholder</span></div>
+            <div><strong>Status</strong><span id="appointmentState">â€”</span></div>
+          </div>
+          <p class="small">Google sends the Calendar invitation after creation; you may need to accept it. Reminder delivery depends on Google Calendar and recipient settings and is not guaranteed. No separate confirmation click is required in this prototype.</p>
+        </div>
+      </aside>
+    </div>
+    <div class="notice clinical">
+      <strong>Clinical and privacy notice:</strong> This consultation service is not for emergencies. A parent or guardian should attend where required. Do not submit highly sensitive medical information in this prototype. Actual credential, privacy, consent, cancellation, and safeguarding policies must be reviewed before deployment.
+    </div>
+  </section>
+</main>
+
+<footer>
+  <p><strong>Speak & Grow prototype</strong> Â· Educational use only</p>
+  <p class="small">Content and AI-assisted prototype should be reviewed and approved by a qualified speech-language professional before use with children.</p>
+</footer>
+
+<script src="./config.js"></script>
+<script>
+  const BACKEND_URL = window.APP_CONFIG?.backendUrl?.replace(/\/$/, "") || "http://localhost:8000";
+  const BACKEND_WS_URL = BACKEND_URL.replace(/^https:/, "wss:").replace(/^http:/, "ws:");
+  const tabs = [...document.querySelectorAll('.tab')];
+  const panels = [...document.querySelectorAll('.panel')];
+
+  function showTab(id){
+    tabs.forEach(t => t.classList.toggle('active', t.dataset.tab === id));
+    panels.forEach(p => p.classList.toggle('active', p.id === id));
+    window.scrollTo({top:0, behavior:'smooth'});
+  }
+  tabs.forEach(t => t.addEventListener('click', () => showTab(t.dataset.tab)));
+  document.querySelectorAll('.jump').forEach(b => b.addEventListener('click', () => showTab(b.dataset.target)));
+
+  const consultationForm = document.getElementById('consultationForm');
+  const bookConsultationBtn = document.getElementById('bookConsultation');
+  const joinConsultationBtn = document.getElementById('joinConsultation');
+  const consultationCountdown = document.getElementById('consultationCountdown');
+  const consultationStatus = document.getElementById('consultationStatus');
+  const consultationTimezone = document.getElementById('consultationTimezone');
+  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bangkok';
+  consultationTimezone.value = detectedTimezone;
+  let bookedAppointment = null;
+  let consultationPoll = null;
+
+  joinConsultationBtn.addEventListener('click', () => {
+    if(!joinConsultationBtn.disabled && bookedAppointment?.meetUrl){
+      window.open(bookedAppointment.meetUrl, '_blank', 'noopener,noreferrer');
+    }
+  });
+
+  function renderCountdown(){
+    if(!bookedAppointment){consultationCountdown.textContent='No appointment booked';return}
+    const start = new Date(bookedAppointment.startTime);
+    const end = new Date(bookedAppointment.endTime);
+    const now = new Date();
+    if(now > end){consultationCountdown.textContent='Consultation ended';stopConsultationPolling();return}
+    if(bookedAppointment.joinAllowed){consultationCountdown.textContent='Consultation is ready';return}
+    const minutesRemaining = Math.max(0, Math.ceil((start-now)/60000));
+    const days = Math.floor(minutesRemaining / 1440);
+    const hours = Math.floor((minutesRemaining % 1440) / 60);
+    const minutes = minutesRemaining % 60;
+    consultationCountdown.textContent = `${days} days, ${hours} hours, ${minutes} minutes until consultation`;
+  }
+
+  function stopConsultationPolling(){
+    if(consultationPoll){clearInterval(consultationPoll);consultationPoll=null}
+  }
+
+  async function refreshConsultationStatus(){
+    if(!bookedAppointment?.eventId)return;
+    try{
+      const response=await fetch(`${BACKEND_URL}/api/consultations/${encodeURIComponent(bookedAppointment.eventId)}`);
+      if(!response.ok)return;
+      const result=await response.json();
+      bookedAppointment.joinAllowed=result.join_allowed===true;
+      if(result.meet_url)bookedAppointment.meetUrl=result.meet_url;
+      joinConsultationBtn.disabled=!(bookedAppointment.joinAllowed&&bookedAppointment.meetUrl);
+      renderCountdown();
+    }catch(_){
+      consultationStatus.textContent='Appointment booked, but live status is temporarily unavailable.';
+    }
+  }
+
+  consultationForm.addEventListener('submit', async event => {
+    event.preventDefault();
+    if(!consultationForm.reportValidity())return;
+    const localStart=new Date(`${document.getElementById('appointmentDate').value}T${document.getElementById('appointmentTime').value}`);
+    if(Number.isNaN(localStart.getTime())){consultationStatus.className='status bad';consultationStatus.textContent='Choose a valid appointment date and time.';return}
+    const payload={
+      guardian_name:document.getElementById('guardianName').value.trim(),
+      guardian_email:document.getElementById('guardianEmail').value.trim(),
+      child_display_name:document.getElementById('childDisplayName').value.trim()||null,
+      child_age_range:document.getElementById('childAgeRange').value||null,
+      consultation_reason:document.getElementById('consultationReason').value.trim(),
+      appointment_start:localStart.toISOString(),
+      duration_minutes:Number(document.getElementById('consultationDuration').value),
+      timezone:consultationTimezone.value,
+      consent_confirmed:document.getElementById('consultationConsent').checked
+    };
+    bookConsultationBtn.disabled=true;
+    consultationStatus.className='status';
+    consultationStatus.textContent='Creating your appointment securelyâ€¦';
+    try{
+      const response=await fetch(`${BACKEND_URL}/api/consultations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const result=await response.json();
+      if(!response.ok){
+        consultationStatus.className='status bad';
+        consultationStatus.textContent=response.status===409?'The selected time is no longer available. Please choose another time.':(typeof result.detail==='string'?result.detail:'Please check the appointment information and try again.');
+        return;
+      }
+      bookedAppointment={eventId:result.event_id,meetUrl:result.meet_url,startTime:result.start_time,endTime:result.end_time,joinAllowed:false};
+      document.getElementById('appointmentStart').textContent=new Date(result.start_time).toLocaleString();
+      document.getElementById('appointmentEnd').textContent=new Date(result.end_time).toLocaleString();
+      document.getElementById('appointmentState').textContent=result.status;
+      document.getElementById('appointmentCard').hidden=false;
+      consultationStatus.className='status good';
+      consultationStatus.textContent=result.message;
+      joinConsultationBtn.disabled=true;
+      renderCountdown();
+      await refreshConsultationStatus();
+      stopConsultationPolling();
+      consultationPoll=setInterval(refreshConsultationStatus,60000);
+    }catch(_){
+      consultationStatus.className='status bad';
+      consultationStatus.textContent='The booking service is unavailable. Please try again later.';
+    }finally{bookConsultationBtn.disabled=false}
+  });
+
+  setInterval(renderCountdown,30000);
+  window.addEventListener('beforeunload',stopConsultationPolling);
+
+  function speak(text, lang='en-US', rate=.8){
+    if(!('speechSynthesis' in window)){
+      alert('Text-to-speech is not supported in this browser.');
+      return;
+    }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = lang; u.rate = rate;
+    speechSynthesis.speak(u);
+  }
+  document.getElementById('hearSound').addEventListener('click', () => speak('eeee', 'en-US', .65));
+  document.getElementById('hearWord').addEventListener('click', () => speak('see', 'en-US', .75));
+
+  let turns=0;
+  document.getElementById('practiceDone').addEventListener('click', () => {
+    turns=Math.min(5,turns+1);
+    document.getElementById('practiceBar').style.width=(turns*20)+'%';
+    document.getElementById('practiceText').textContent=`${turns} of 5 practice turns`;
+    if(turns===5) speak('Great practicing!', 'en-US', .9);
+  });
+
+  // Voxtral runner game: browser microphone -> local FastAPI WebSocket -> Mistral SDK.
+  let audioContext = null;
+  let microphoneStream = null;
+  let sourceNode = null;
+  let processorNode = null;
+  let socket = null;
+  let transcriptBuffer = "";
+  let currentScore = 0;
+  let attemptNumber = 0;
+
+  const runner = document.getElementById('runner');
+  const scoreNumber = document.getElementById('scoreNumber');
+  const scoreFill = document.getElementById('scoreFill');
+  const scoreTrack = document.querySelector('.score-track');
+  const gameStatus = document.getElementById('gameStatus');
+  const transcriptEl = document.getElementById('transcript');
+  const listenBtn = document.getElementById('listenBtn');
+  const stopListenBtn = document.getElementById('stopListenBtn');
+  const attemptHistory = document.getElementById('attemptHistory');
+
+  function normalizeAttempt(value){
+    return value.toLowerCase().replace(/[^a-z]/g, '');
+  }
+
+  function levenshtein(a, b){
+    const rows = a.length + 1;
+    const cols = b.length + 1;
+    const matrix = Array.from({length: rows}, () => Array(cols).fill(0));
+    for(let i=0;i<rows;i++) matrix[i][0]=i;
+    for(let j=0;j<cols;j++) matrix[0][j]=j;
+    for(let i=1;i<rows;i++){
+      for(let j=1;j<cols;j++){
+        const cost=a[i-1]===b[j-1]?0:1;
+        matrix[i][j]=Math.min(
+          matrix[i-1][j]+1,
+          matrix[i][j-1]+1,
+          matrix[i-1][j-1]+cost
+        );
+      }
+    }
+    return matrix[a.length][b.length];
+  }
+
+  function vowelGameScore(transcript){
+    const heard = normalizeAttempt(transcript);
+    if(!heard) return 0;
+
+    // Exact accepted transcript forms reach the goal.
+    const exactTargets = ['e','ee','see','sea'];
+    if(exactTargets.includes(heard)) return 100;
+
+    // Find the best normalized edit similarity to any accepted form.
+    const similarities = exactTargets.map(target => {
+      const distance = levenshtein(heard, target);
+      return Math.max(0, 1 - distance / Math.max(heard.length, target.length));
+    });
+    let score = Math.round(Math.max(...similarities) * 100);
+
+    // Keep non-exact attempts below the goal and reduce long unrelated phrases.
+    if(heard.length > 5) score = Math.round(score * Math.max(.25, 5 / heard.length));
+    return Math.min(95, Math.max(0, score));
+  }
+
+  function renderRunner(score){
+    currentScore = Math.max(0, Math.min(100, Math.round(score)));
+    const leftPercent = 6 + currentScore * 0.87; // start 6%, goal about 93%
+    runner.style.left = `${leftPercent}%`;
+    runner.classList.remove('running');
+    void runner.offsetWidth;
+    runner.classList.add('running');
+    scoreNumber.textContent = `${currentScore}%`;
+    scoreFill.style.width = `${currentScore}%`;
+    scoreTrack.setAttribute('aria-valuenow', String(currentScore));
+  }
+
+  function floatTo16BitPCM(input){
+    const output = new ArrayBuffer(input.length * 2);
+    const view = new DataView(output);
+    for(let i=0;i<input.length;i++){
+      const sample=Math.max(-1,Math.min(1,input[i]));
+      view.setInt16(i*2, sample<0?sample*0x8000:sample*0x7fff, true);
+    }
+    return output;
+  }
+
+  function downsampleBuffer(buffer, inputRate, outputRate=16000){
+    if(outputRate === inputRate) return buffer;
+    const ratio = inputRate / outputRate;
+    const newLength = Math.round(buffer.length / ratio);
+    const result = new Float32Array(newLength);
+    let offsetResult=0;
+    let offsetBuffer=0;
+    while(offsetResult < result.length){
+      const nextOffsetBuffer = Math.round((offsetResult + 1) * ratio);
+      let sum=0, count=0;
+      for(let i=offsetBuffer;i<nextOffsetBuffer && i<buffer.length;i++){
+        sum += buffer[i]; count++;
+      }
+      result[offsetResult] = count ? sum/count : 0;
+      offsetResult++;
+      offsetBuffer = nextOffsetBuffer;
+    }
+    return result;
+  }
+
+  async function startVoxtralAttempt(){
+    if(socket || microphoneStream) return;
+    transcriptBuffer = "";
+    transcriptEl.textContent = "Listeningâ€¦";
+    gameStatus.className = "status";
+    gameStatus.textContent = "Connecting to the Voxtral realtime backendâ€¦";
+    listenBtn.disabled = true;
+
+    try{
+      socket = new WebSocket(`${BACKEND_WS_URL}/ws/pronunciation`);
+      socket.binaryType = 'arraybuffer';
+
+      socket.addEventListener('open', async () => {
+        socket.send(JSON.stringify({
+          type:'start',
+          model:'voxtral-mini-transcribe-realtime-2602',
+          sample_rate:16000,
+          target:'e'
+        }));
+
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio:{channelCount:1, echoCancellation:true, noiseSuppression:true},
+          video:false
+        });
+
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        sourceNode = audioContext.createMediaStreamSource(microphoneStream);
+        processorNode = audioContext.createScriptProcessor(4096, 1, 1);
+        const silentGain = audioContext.createGain();
+        silentGain.gain.value = 0;
+
+        processorNode.onaudioprocess = event => {
+          if(!socket || socket.readyState !== WebSocket.OPEN) return;
+          const samples = event.inputBuffer.getChannelData(0);
+          const pcm16 = floatTo16BitPCM(downsampleBuffer(samples, audioContext.sampleRate, 16000));
+          socket.send(pcm16);
+        };
+
+        sourceNode.connect(processorNode);
+        processorNode.connect(silentGain);
+        silentGain.connect(audioContext.destination);
+        stopListenBtn.disabled = false;
+        gameStatus.className = "status good";
+        gameStatus.textContent = "Listening nowâ€”say â€œeeeeâ€ or â€œsee,â€ then press Stop and score.";
+      });
+
+      socket.addEventListener('message', event => {
+        const message = JSON.parse(event.data);
+        if(message.type === 'delta'){
+          transcriptBuffer += message.text || "";
+          transcriptEl.textContent = transcriptBuffer.trim() || "Listeningâ€¦";
+        }else if(message.type === 'done'){
+          finalizeAttempt(message.transcript || transcriptBuffer);
+        }else if(message.type === 'error'){
+          throw new Error(message.message || 'Voxtral streaming error');
+        }
+      });
+
+      socket.addEventListener('error', () => {
+        gameStatus.className = "status bad";
+        gameStatus.textContent = "Could not connect to the pronunciation backend. Start backend.py and reload the page.";
+        cleanupAudio();
+      });
+
+      socket.addEventListener('close', () => {
+        if(microphoneStream) cleanupAudio();
+      });
+    }catch(error){
+      gameStatus.className = "status bad";
+      gameStatus.textContent = `Could not start: ${error.message}`;
+      cleanupAudio();
+    }
+  }
+
+  function stopVoxtralAttempt(){
+    stopListenBtn.disabled = true;
+    gameStatus.className = "status";
+    gameStatus.textContent = "Finishing transcription and calculating the game scoreâ€¦";
+    if(socket && socket.readyState === WebSocket.OPEN){
+      socket.send(JSON.stringify({type:'stop'}));
+    }else{
+      finalizeAttempt(transcriptBuffer);
+    }
+    stopMicrophoneOnly();
+  }
+
+  function finalizeAttempt(transcript){
+    const cleanTranscript = (transcript || "").trim();
+    const score = vowelGameScore(cleanTranscript);
+    transcriptEl.textContent = cleanTranscript || "No sound transcribed";
+    renderRunner(score);
+    attemptNumber += 1;
+
+    const chip=document.createElement('span');
+    chip.className='attempt-chip';
+    chip.textContent=`Try ${attemptNumber}: ${score}%`;
+    attemptHistory.appendChild(chip);
+
+    if(score === 100){
+      gameStatus.className='status good';
+      gameStatus.textContent='Goal reached! Voxtral transcribed the target â€œe / ee / seeâ€ form.';
+      speak('Goal reached! Great practicing!', 'en-US', .9);
+    }else if(score >= 70){
+      gameStatus.className='status good';
+      gameStatus.textContent=`Very closeâ€”your runner moved to ${score}% of the track.`;
+    }else if(score > 0){
+      gameStatus.className='status';
+      gameStatus.textContent=`Good attempt. The runner moved to ${score}% of the track. Listen and try again.`;
+    }else{
+      gameStatus.className='status';
+      gameStatus.textContent='No matching target was transcribed. Try a quiet room and hold â€œeeeeâ€ clearly.';
+    }
+    cleanupAudio();
+  }
+
+  function stopMicrophoneOnly(){
+    if(processorNode){processorNode.disconnect();processorNode.onaudioprocess=null;processorNode=null}
+    if(sourceNode){sourceNode.disconnect();sourceNode=null}
+    if(microphoneStream){microphoneStream.getTracks().forEach(track=>track.stop());microphoneStream=null}
+    if(audioContext){audioContext.close();audioContext=null}
+  }
+
+  function cleanupAudio(){
+    stopMicrophoneOnly();
+    if(socket){
+      try{socket.close()}catch(_){}
+      socket=null;
+    }
+    listenBtn.disabled=false;
+    stopListenBtn.disabled=true;
+  }
+
+  listenBtn.addEventListener('click', startVoxtralAttempt);
+  stopListenBtn.addEventListener('click', stopVoxtralAttempt);
+
+  document.getElementById('resetGame').addEventListener('click',()=>{
+    cleanupAudio();
+    transcriptBuffer='';
+    transcriptEl.textContent='â€”';
+    attemptHistory.innerHTML='';
+    attemptNumber=0;
+    renderRunner(0);
+    runner.classList.remove('running');
+    gameStatus.className='status';
+    gameStatus.textContent='Ready. The backend must be running and connected to Mistral.';
+  });
+
+  let chosen=25;
+  document.querySelectorAll('.amount').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.amount').forEach(x=>x.classList.remove('selected'));
+    b.classList.add('selected'); chosen=Number(b.dataset.amount);
+    document.getElementById('customAmount').value='';
+  }));
+  document.getElementById('customAmount').addEventListener('input',e=>{
+    if(e.target.value){document.querySelectorAll('.amount').forEach(x=>x.classList.remove('selected')); chosen=Number(e.target.value)}
+  });
+  document.getElementById('donateBtn').addEventListener('click',()=>{
+    const value=Number(document.getElementById('customAmount').value)||chosen;
+    const box=document.getElementById('donationStatus');
+    if(!value || value<1){box.className='status bad';box.textContent='Please enter a valid donation amount.';return}
+    box.className='status good';
+    box.textContent=`Demo selection: $${value.toFixed(2)}. Connect a secure payment provider for real donations.`;
+  });
+</script>
+</body>
+</html>
+
