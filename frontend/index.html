@@ -65,6 +65,15 @@
     .avatar{font-size:6rem}
     .badge{display:inline-flex;border-radius:999px;background:var(--mint);color:#176244;padding:.3rem .65rem;font-weight:700;font-size:.88rem}
     .credentials{display:flex;flex-wrap:wrap;gap:.5rem;margin:.8rem 0}
+    .profile-content{display:grid;gap:1rem}
+    .profile-card{padding:1.5rem}
+    .profile-card h3{color:var(--primary-dark);margin-bottom:.65rem}
+    .profile-card p{margin:.45rem 0}
+    .profile-list{margin:.25rem 0 0;padding-left:1.5rem}
+    .profile-list li{margin:.35rem 0;padding-left:.15rem}
+    .profile-list ul{margin:.35rem 0 .5rem;padding-left:1.35rem}
+    .profile-name{font-size:clamp(1.45rem,3vw,2rem);margin:.8rem 0 .35rem}
+    .profile-role{color:var(--muted);font-size:1.08rem;margin:0}
     .notice{border-left:5px solid var(--accent);background:#fff8e8;padding:1rem;border-radius:12px;margin:1rem 0}
     .clinical{border-color:var(--primary);background:var(--lavender)}
     .sound-board{display:grid;grid-template-columns:.8fr 1.2fr;gap:1rem}
@@ -172,7 +181,7 @@
     <div class="brand"><span class="logo">🗣️</span><span>Speak & Grow</span></div>
     <nav aria-label="Main navigation">
       <button class="tab active" data-tab="home">Home</button>
-      <button class="tab" data-tab="therapist">Certified Therapist</button>
+      <button class="tab" data-tab="therapist">Profile</button>
       <button class="tab" data-tab="lessons">Sound Lessons</button>
       <button class="tab" data-tab="game">AR Speech Game</button>
       <button class="tab" data-tab="donation">Donation</button>
@@ -209,26 +218,58 @@
   </section>
 
   <section id="therapist" class="panel">
-    <div class="section-head"><span class="eyebrow">Professional support</span><h2>Certified therapist profile</h2></div>
+    <div class="section-head"><span class="eyebrow">Profile</span><h2>ประวัติผู้ให้คำปรึกษา</h2></div>
     <div class="profile">
       <aside class="card portrait">
-        <div><div class="avatar">👩‍⚕️</div><h3>Dr. Maya Example</h3><span class="badge">Profile placeholder</span></div>
-      </aside>
-      <article class="card">
-        <h2>Speech-Language Therapist</h2>
-        <p class="lead">Special interest in early speech development, speech-sound practice, family coaching, and play-based learning.</p>
-        <div class="credentials">
-          <span class="badge">Professional license: add ID</span>
-          <span class="badge">Certification: add credential</span>
-          <span class="badge">Child safeguarding trained</span>
+        <div>
+          <div class="avatar" aria-hidden="true">👩‍⚕️</div>
+          <h3 class="profile-name">รศ.ดร. จันทร์เพ็ญ ภูโสภา</h3>
+          <p class="profile-role">นักจิตวิทยาการปรึกษา</p>
         </div>
-        <h3>About the therapist</h3>
-        <p>Replace this sample profile with the therapist’s verified name, qualifications, license number, issuing organization, clinical experience, languages, and contact details.</p>
-        <h3>Approach</h3>
-        <p>Sessions are child-centered and adapted to the child’s age, communication needs, language background, interests, and clinician-approved goals.</p>
-        <div class="notice"><strong>Verification requirement:</strong> Do not publish “certified” or “licensed” claims until the credentials have been checked with the relevant professional authority.</div>
-        <button class="btn primary jump" data-target="game">Try the practice game</button>
-      </article>
+      </aside>
+      <div class="profile-content">
+        <article class="card profile-card">
+          <h3>เกี่ยวกับฉัน</h3>
+          <p>สวัสดีค่ะ ยินดีที่ได้รู้จักทุกคนที่กำลังมองหาพื้นที่ปลอดภัยในการระบายใจค่ะ ดิฉันเชื่อว่าในวันที่ชีวิตต้องเผชิญกับเรื่องหนัก การมีใครสักคนที่รับฟังอย่างเข้าใจและไม่ตัดสิน คือจุดเริ่มต้นสำคัญของการฟื้นฟูพลังใจ</p>
+          <p>มาร่วมปลดล็อกความเครียด ค้นหาแนวทางในการรับมือกับปัญหา และเติบโตไปด้วยกันนะคะ</p>
+        </article>
+        <article class="card profile-card">
+          <h3>ความเชี่ยวชาญเฉพาะทาง</h3>
+          <ul class="profile-list">
+            <li>การจัดการความเครียด</li>
+            <li>ปัญหาความสัมพันธ์ ความรัก และครอบครัว</li>
+            <li>การพัฒนาความมั่นใจในตนเองและการเห็นคุณค่าในตนเอง</li>
+            <li>การพัฒนาตนเองและการสร้างกำลังใจ</li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>ประวัติการศึกษาและการฝึกอบรม</h3>
+          <ul class="profile-list">
+            <li>ปริญญาโท สาขาจิตวิทยาการให้คำปรึกษา</li>
+            <li>ปริญญาเอก สาขาจิตวิทยาการศึกษาและการแนะแนว</li>
+            <li>การอบรมด้านจิตวิทยาแนวพุทธ</li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>ประสบการณ์</h3>
+          <ul class="profile-list">
+            <li>สอนในระดับอุดมศึกษาเกี่ยวกับการให้คำปรึกษา ทฤษฎีการให้คำปรึกษา เทคนิค และกระบวนการให้คำปรึกษา เป็นระยะเวลามากกว่า 10 ปี</li>
+            <li>มีประสบการณ์ด้านการให้คำปรึกษามากกว่า 10 ปี</li>
+            <li>มีประสบการณ์จัดหลักสูตรฝึกอบรมระยะสั้นด้านจิตวิทยา เช่น
+              <ul>
+                <li>การให้คำปรึกษาเบื้องต้นและขั้นสูง</li>
+                <li>จิตวิทยาผู้สูงอายุ</li>
+                <li>จิตวิทยาเด็กและวัยรุ่น</li>
+                <li>จิตวิทยาในชั้นเรียน</li>
+              </ul>
+            </li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>แนวคิดและรูปแบบการให้คำปรึกษา</h3>
+          <p>เน้นการรับฟังอย่างเข้าใจ ไม่ตัดสิน และร่วมมือกับผู้รับบริการเพื่อค้นหาแนวทางในการรับมือและแก้ไขปัญหา พร้อมทั้งส่งเสริมกำลังใจและความเข้มแข็งในการดำเนินชีวิตต่อไป</p>
+        </article>
+      </div>
     </div>
   </section>
 
@@ -826,4 +867,3 @@
 </script>
 </body>
 </html>
-
