@@ -1,4 +1,8 @@
-﻿import asyncio
+import asyncio
+import base64
+import binascii
+import hashlib
+import re
 import json
 import logging
 import os
@@ -8,11 +12,12 @@ import uuid
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import AsyncIterator, Literal
+from functools import lru_cache
+from typing import AsyncIterator, Callable, Literal, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, status
+from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,7 +30,7 @@ from mistralai.client.models import (
     TranscriptionStreamTextDelta,
 )
 from mistralai.extra.realtime import UnknownRealtimeEvent
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, UUID4, field_validator
 from starlette.middleware.sessions import SessionMiddleware
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
@@ -151,7 +156,365 @@ async def consultation_validation_error(
             status_code=status.HTTP_400_BAD_REQUEST,
             content={"detail": "กรุณาตรวจสอบข้อมูลนัดหมาย: ชื่อ อีเมล วันเวลาพร้อมเขตเวลา และระยะเวลา 50 นาที"},
         )
+    if request.url.path.startswith("/api/book-orders"):
+        return JSONResponse(status_code=422, content={"detail": "กรุณาตรวจสอบชื่อ อีเมล และรายการหนังสือ จำนวนต้องเป็นจำนวนเต็ม 1–99 เล่มต่อรายการ"})
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+# Server-owned book catalog; browser prices are never used.
+BOOK_CATALOG = {
+    "guidance": {
+        "title": "หนังสือจิตวิทยาและการแนะแนวสำหรับครู",
+        "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
+        "price": 300
+    },
+    "health": {
+        "title": "หนังสือจิตวิทยาสุขภาพ",
+        "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
+        "price": 300
+    },
+    "counseling": {
+        "title": "หนังสือทฤษฎีการให้คำปรึกษา",
+        "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
+        "price": 300
+    },
+    "learning": {
+        "title": "หนังสือทฤษฎีทางจิตวิทยาที่ใช้จัดการเรียนการสอน",
+        "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
+        "price": 300
+    },
+    "skills": {
+        "title": "หนังสือกระบวนการขั้นตอนเทคนิคและทักษะการให้คำปรึกษา",
+        "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
+        "price": 300
+    }
+}
+
+
+class BookOrderItem(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    book_id: str = Field(min_length=1, max_length=40)
+    quantity: int = Field(strict=True, ge=1, le=99)
+
+
+class BookOrderRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    buyer_name: str = Field(min_length=1, max_length=120)
+    buyer_email: EmailStr
+    buyer_phone: str | None = Field(default=None, max_length=30)
+    items: list[BookOrderItem] = Field(min_length=1, max_length=5)
+    payment_method: Literal["promptpay"] = "promptpay"
+    # A random client-held credential: both retry key and order-access bearer token.
+    idempotency_key: UUID4
+
+    @field_validator("buyer_phone")
+    @classmethod
+    def valid_phone(cls, value: str | None) -> str | None:
+        if not value:
+            return None
+        compact = re.sub(r"[ ()-]", "", value)
+        if not re.fullmatch(r"(?:0[0-9]{8,9}|\+[1-9][0-9]{7,14})", compact):
+            raise ValueError("กรุณาระบุเบอร์โทรศัพท์ให้ถูกต้อง")
+        return compact
+
+
+class BookOrderLine(BaseModel):
+    book_id: str
+    title: str
+    quantity: int
+    unit_price: int
+    line_total: int
+
+
+PaymentStatus = Literal["pending_payment", "awaiting_verification", "paid", "cancelled", "expired"]
+ACTIVE_BOOK_STATUSES = {"pending_payment", "awaiting_verification"}
+
+
+class BookOrderResponse(BaseModel):
+    order_id: str
+    items: list[BookOrderLine]
+    total_quantity: int
+    total_amount: int
+    currency: Literal["THB"] = "THB"
+    payment_method: Literal["promptpay"] = "promptpay"
+    payment_status: PaymentStatus
+    created_at: datetime
+    expires_at: datetime
+    paid_at: datetime | None = None
+    payment_reference: str | None = None
+
+
+class BookPaymentResponse(BaseModel):
+    order: BookOrderResponse
+    qr_image: str
+    merchant_name: str
+
+
+class OrderRepository(Protocol):
+    """Implementations must make retry lookup + creation and updates atomic."""
+
+    def create(self, record: dict) -> dict: ...
+    def find_by_token(self, access_digest: str) -> dict | None: ...
+    def update(self, order_id: str, transform: Callable[[dict], dict]) -> dict: ...
+
+
+class FirestoreOrderRepository:
+    def __init__(self, client: object, collection: str):
+        self.client = client
+        self.orders = client.collection(collection)
+        self.requests = client.collection(collection + "_requests")
+
+    def create(self, record: dict) -> dict:
+        from google.cloud import firestore
+
+        @firestore.transactional
+        def create_once(transaction):
+            key_ref = self.requests.document(record["access_digest"])
+            key = key_ref.get(transaction=transaction)
+            if key.exists:
+                existing = self.orders.document(key.to_dict()["order_id"]).get(transaction=transaction).to_dict()
+                if not existing or existing["request_digest"] != record["request_digest"]:
+                    raise HTTPException(409, "ข้อมูลไม่ตรงกับคำขอเดิม กรุณาตรวจสอบคำสั่งซื้อเดิมก่อน")
+                return existing
+            transaction.create(self.orders.document(record["order_id"]), record)
+            transaction.create(key_ref, {"order_id": record["order_id"]})
+            return record
+
+        return create_once(self.client.transaction())
+
+    def find_by_token(self, access_digest: str) -> dict | None:
+        key = self.requests.document(access_digest).get()
+        if not key.exists:
+            return None
+        return self.orders.document(key.to_dict()["order_id"]).get().to_dict()
+
+    def update(self, order_id: str, transform: Callable[[dict], dict]) -> dict:
+        from google.cloud import firestore
+
+        @firestore.transactional
+        def update_once(transaction):
+            ref = self.orders.document(order_id)
+            snapshot = ref.get(transaction=transaction)
+            if not snapshot.exists:
+                raise HTTPException(404, "ไม่พบคำสั่งซื้อ")
+            original = snapshot.to_dict()
+            updated = transform(dict(original))
+            if updated != original:
+                transaction.set(ref, updated)
+            return updated
+
+        return update_once(self.client.transaction())
+
+
+@lru_cache(maxsize=1)
+def get_book_repository() -> OrderRepository:
+    # No local disk/in-memory fallback: Cloud Run instances are ephemeral.
+    project = os.getenv("BOOK_ORDERS_PROJECT_ID", "").strip()
+    collection = os.getenv("BOOK_ORDERS_COLLECTION", "book_orders").strip()
+    if os.getenv("BOOK_ORDER_STORAGE", "").strip() != "firestore" or not project:
+        raise HTTPException(503, "ระบบจัดเก็บคำสั่งซื้อยังไม่พร้อม กรุณาลองใหม่ภายหลัง")
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{0,62}", collection):
+        raise HTTPException(503, "ระบบจัดเก็บคำสั่งซื้อยังไม่พร้อม")
+    from google.cloud import firestore
+    client = firestore.Client(project=project, database=os.getenv("BOOK_ORDERS_DATABASE", "(default)"))
+    return FirestoreOrderRepository(client, collection)
+
+
+def book_storage_call(action: Callable[[OrderRepository], dict]) -> dict:
+    try:
+        return action(get_book_repository())
+    except HTTPException:
+        raise
+    except Exception:
+        # Do not log request contents, credentials or SDK exception payloads.
+        raise HTTPException(503, "ระบบจัดเก็บคำสั่งซื้อไม่พร้อมใช้งาน กรุณาลองใหม่ด้วยคำขอเดิม") from None
+
+
+def book_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def digest_book_token(token: str) -> str:
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def authorize_book_record(record: dict, token: str) -> dict:
+    if not secrets.compare_digest(record["access_digest"], digest_book_token(token)):
+        raise HTTPException(404, "ไม่พบคำสั่งซื้อ")
+    if record["payment_status"] in ACTIVE_BOOK_STATUSES and book_now() >= datetime.fromisoformat(record["expires_at"]):
+        record = {**record, "payment_status": "expired"}
+    return record
+
+
+def book_access_token(request: Request) -> str:
+    value = request.headers.get("Authorization", "")
+    if not value.startswith("Bearer ") or len(value) != 43:
+        raise HTTPException(401, "กรุณาเปิดคำสั่งซื้อจากหน้าชำระเงินเดิม")
+    try:
+        token = str(uuid.UUID(value[7:], version=None))
+    except ValueError:
+        raise HTTPException(401, "กรุณาเปิดคำสั่งซื้อจากหน้าชำระเงินเดิม") from None
+    return token
+
+
+def read_book_order(order_id: str, token: str) -> dict:
+    if not re.fullmatch(r"BSJ-[0-9]{8}-[A-F0-9]{24}", order_id):
+        raise HTTPException(404, "ไม่พบคำสั่งซื้อ")
+    return book_storage_call(lambda repo: repo.update(order_id, lambda record: authorize_book_record(record, token)))
+
+
+def public_book_order(record: dict) -> BookOrderResponse:
+    # Explicit allowlist excludes buyer PII, token digests and merchant QR data.
+    return BookOrderResponse(**{name: record[name] for name in BookOrderResponse.model_fields})
+
+
+def build_promptpay_payload(identifier: str, amount_baht: int) -> str:
+    """Thai QR credit transfer: tag 29, THB 764, exact amount, CRC16-CCITT.
+
+    Phone and 13-digit tax/national proxies only. No invoice/reference claim is
+    encoded: a direct credit-transfer QR is not an order-aware gateway session.
+    """
+    if type(amount_baht) is not int or amount_baht <= 0:
+        raise ValueError("Invalid server order amount")
+    if re.fullmatch(r"0[689][0-9]{8}", identifier):
+        proxy_tag, proxy = "01", "0066" + identifier[1:]
+    elif re.fullmatch(r"[0-9]{13}", identifier):
+        proxy_tag, proxy = "02", identifier
+    else:
+        raise ValueError("Invalid PromptPay configuration")
+
+    def tlv(tag, value):
+        return tag + f"{len(value):02d}" + value
+
+    merchant = tlv("00", "A000000677010111") + tlv(proxy_tag, proxy)
+    content = (tlv("00", "01") + tlv("01", "12") + tlv("29", merchant)
+               + tlv("58", "TH") + tlv("53", "764") + tlv("54", f"{amount_baht}.00") + "6304")
+    return content + f"{binascii.crc_hqx(content.encode('ascii'), 0xFFFF):04X}"
+
+
+def promptpay_qr_image(payload: str) -> str:
+    import qrcode
+    from qrcode.image.svg import SvgPathImage
+    qr = qrcode.QRCode(error_correction=qrcode.constants.ERROR_CORRECT_M, border=4, box_size=10)
+    qr.add_data(payload)
+    qr.make(fit=True)
+    image = qr.make_image(image_factory=SvgPathImage)
+    return "data:image/svg+xml;base64," + base64.b64encode(image.to_string()).decode("ascii")
+
+
+class PaymentProvider(Protocol):
+    def create_payment(self, order: dict) -> dict: ...
+    def get_payment_status(self, reference: str) -> PaymentStatus: ...
+    def verify_callback(self, payload: bytes, headers: dict) -> dict: ...
+    def verify_payment(self, order_id: str, provider_reference: str) -> dict: ...
+
+
+class DirectPromptPayProvider:
+    def create_payment(self, order: dict) -> dict:
+        identifier = os.getenv("PROMPTPAY_ID", "").strip()
+        name = os.getenv("PROMPTPAY_MERCHANT_NAME", "").strip()
+        if not name or name.startswith("YOUR_") or len(name) > 120:
+            raise HTTPException(503, "ระบบพร้อมเพย์ยังไม่ได้ตั้งค่า กรุณาติดต่อผู้ขาย")
+        try:
+            payload = build_promptpay_payload(identifier, order["total_amount"])
+        except ValueError:
+            raise HTTPException(503, "ระบบพร้อมเพย์ยังไม่ได้ตั้งค่า กรุณาติดต่อผู้ขาย") from None
+        return {"qr_payload": payload, "merchant_name": name}
+
+    def get_payment_status(self, reference: str) -> PaymentStatus:
+        raise HTTPException(503, "ยังไม่มีบริการตรวจสอบการรับเงินจากธนาคาร")
+
+    def verify_callback(self, payload: bytes, headers: dict) -> dict:
+        raise HTTPException(503, "ยังไม่มีบริการยืนยันการชำระเงิน")
+
+    def verify_payment(self, order_id: str, provider_reference: str) -> dict:
+        raise HTTPException(503, "ต้องตรวจสอบการรับเงินจริงก่อนยืนยันการชำระเงิน")
+
+
+def get_book_payment_provider() -> PaymentProvider:
+    return DirectPromptPayProvider()
+
+
+@app.post("/api/book-orders", response_model=BookOrderResponse)
+def create_book_order(order: BookOrderRequest, request: Request, response: Response) -> BookOrderResponse:
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "book-orders", 20, 60)
+    seen = set()
+    items = []
+    for item in order.items:
+        if item.book_id not in BOOK_CATALOG or item.book_id in seen:
+            raise HTTPException(422, "กรุณาเลือกหนังสือจากรายการ และไม่ส่งรายการหนังสือซ้ำ")
+        seen.add(item.book_id)
+        book = BOOK_CATALOG[item.book_id]
+        items.append(BookOrderLine(book_id=item.book_id, title=book["title"], quantity=item.quantity,
+                                   unit_price=book["price"], line_total=book["price"] * item.quantity).model_dump())
+    canonical = order.model_dump(mode="json", exclude={"idempotency_key"})
+    canonical["items"] = sorted(canonical["items"], key=lambda item: item["book_id"])
+    now = book_now()
+    record = {
+        "order_id": f"BSJ-{now.astimezone(ZoneInfo('Asia/Bangkok')):%Y%m%d}-{secrets.token_hex(12).upper()}",
+        "buyer_name": order.buyer_name, "buyer_email": str(order.buyer_email), "buyer_phone": order.buyer_phone,
+        "items": items, "total_quantity": sum(item["quantity"] for item in items),
+        "total_amount": sum(item["line_total"] for item in items), "currency": "THB",
+        "payment_method": "promptpay", "payment_status": "pending_payment",
+        "created_at": now.isoformat(), "expires_at": (now + timedelta(minutes=30)).isoformat(),
+        "paid_at": None, "payment_reference": None,
+        "access_digest": digest_book_token(str(order.idempotency_key)),
+        "request_digest": hashlib.sha256(json.dumps(canonical, sort_keys=True, ensure_ascii=False).encode()).hexdigest(),
+    }
+    created = book_storage_call(lambda repo: repo.create(record))
+    return public_book_order(read_book_order(created["order_id"], str(order.idempotency_key)))
+
+
+@app.get("/api/book-orders/session/current", response_model=BookOrderResponse)
+def recover_book_order(request: Request, response: Response) -> BookOrderResponse:
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "book-order-status", 120, 60)
+    token = book_access_token(request)
+    record = book_storage_call(lambda repo: repo.find_by_token(digest_book_token(token)))
+    if record is None:
+        raise HTTPException(404, "ยังไม่พบคำสั่งซื้อจากคำขอนี้ สามารถลองส่งคำขอเดิมได้")
+    return public_book_order(read_book_order(record["order_id"], token))
+
+
+@app.get("/api/book-orders/{order_id}", response_model=BookOrderResponse)
+def get_book_order(order_id: str, request: Request, response: Response) -> BookOrderResponse:
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "book-order-status", 120, 60)
+    return public_book_order(read_book_order(order_id, book_access_token(request)))
+
+
+@app.post("/api/book-orders/{order_id}/payment", response_model=BookPaymentResponse)
+def create_book_payment(order_id: str, request: Request, response: Response) -> BookPaymentResponse:
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "book-payment", 20, 60)
+    token = book_access_token(request)
+    record = read_book_order(order_id, token)
+    if record["payment_status"] not in ACTIVE_BOOK_STATUSES:
+        raise HTTPException(409, "คำสั่งซื้อนี้หมดเวลาการชำระเงินแล้ว หรือไม่สามารถรับชำระได้")
+    try:
+        instruction = record.get("payment_instruction") or get_book_payment_provider().create_payment(record)
+        # Ensure QR rendering works before persisting the instruction state.
+        promptpay_qr_image(instruction["qr_payload"])
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(503, "ไม่สามารถสร้าง QR ได้ กรุณาลองใหม่ภายหลัง") from None
+
+    def issue(current):
+        current = authorize_book_record(current, token)
+        if current["payment_status"] not in ACTIVE_BOOK_STATUSES:
+            return current
+        current.setdefault("payment_instruction", instruction)
+        current["payment_status"] = "awaiting_verification"
+        return current
+
+    updated = book_storage_call(lambda repo: repo.update(order_id, issue))
+    if updated["payment_status"] not in ACTIVE_BOOK_STATUSES:
+        raise HTTPException(409, "คำสั่งซื้อนี้หมดเวลาการชำระเงินแล้ว หรือไม่สามารถรับชำระได้")
+    saved = updated["payment_instruction"]
+    return BookPaymentResponse(order=public_book_order(updated), merchant_name=saved["merchant_name"],
+                               qr_image=promptpay_qr_image(saved["qr_payload"]))
 
 
 def google_settings() -> dict[str, str]:

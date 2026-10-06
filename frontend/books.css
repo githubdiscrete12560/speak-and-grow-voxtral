@@ -1,0 +1,54 @@
+/* Shared series design: live Thai typography, no external image assets. */
+#books [hidden]{display:none}
+#books h2,#books h3{line-height:1.5}
+#books h2{margin:.65rem 0 0}
+#books button:focus-visible,#books a:focus-visible{outline:3px solid var(--primary-dark);outline-offset:3px}
+.books-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.books-series-note{color:var(--primary-dark);font-weight:750}
+.books-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1.25rem;margin:1.5rem 0}
+.book-card{border:1px solid var(--border);border-radius:22px;background:var(--surface);overflow:hidden;display:flex;flex-direction:column;box-shadow:var(--shadow);min-width:0}
+.book-cover-wrap{padding:1.5rem 1.8rem;background:#f0f2f7}
+.book-cover{--cover-bg:#e2eee5;--cover-ink:#2e5947;position:relative;min-height:370px;display:flex;flex-direction:column;padding:1.3rem 1.15rem 1.2rem 1.5rem;background:var(--cover-bg);color:var(--cover-ink);border-radius:3px 12px 12px 3px;box-shadow:5px 8px 15px #24304726;border-left:7px solid var(--cover-ink);isolation:isolate}
+.book-cover::after{content:"";position:absolute;inset:0 0 0 auto;width:4px;background:#ffffff75;border-radius:0 12px 12px 0}
+.book-cover.rose{--cover-bg:#f4e4e2;--cover-ink:#82464d}
+.book-cover.lavender{--cover-bg:#e9e6f6;--cover-ink:#555085}
+.book-cover.sand{--cover-bg:#f2e9d8;--cover-ink:#795e2e}
+.book-cover.sky{--cover-bg:#dfedf3;--cover-ink:#335e76}
+.book-cover-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem;font-size:.72rem;font-weight:700;letter-spacing:.035em}
+.book-cover-number{font-size:1rem;border:1px solid currentColor;border-radius:50%;width:32px;height:32px;display:grid;place-items:center;flex-shrink:0}
+.book-cover h3{font-size:clamp(1.05rem,1.6vw,1.28rem);margin:1rem 0 .6rem;overflow-wrap:anywhere;font-weight:800}
+.book-cover-tagline{font-size:.78rem;margin:0;line-height:1.6}
+.book-cover-art{height:90px;width:100%;margin:auto 0 .8rem;padding-top:.65rem;color:var(--cover-ink)}
+.book-cover-art svg{height:100%;width:100%;display:block}
+.book-cover-author{font-size:.83rem;font-weight:750;border-top:1px solid currentColor;padding-top:.65rem;margin:0}
+.book-cover-price{align-self:flex-end;border-radius:999px;background:#fff9;padding:.2rem .6rem;font-size:.8rem;font-weight:800;margin-top:.6rem}
+.book-details{padding:1.2rem;display:flex;flex-direction:column;flex:1}
+.book-details h3{font-size:1.08rem;margin-bottom:.35rem}
+.book-author{font-size:.85rem;color:var(--muted);margin:0}
+.book-description{font-size:.94rem;flex:1}
+.book-buy-row{display:flex;align-items:center;justify-content:space-between;gap:.5rem;flex-wrap:wrap}
+.book-buy-row .btn{font-size:.9rem;padding:.65rem .8rem}
+.books-order-layout{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;align-items:start;margin-top:1.5rem}
+#bookCart{scroll-margin-top:140px}
+#bookCheckout{scroll-margin-top:140px}
+.books-cart-row{padding:1rem 0;border-bottom:1px solid var(--border)}
+.books-cart-row h4{margin:0 0 .5rem;line-height:1.5;font-size:.98rem}
+.books-cart-controls{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.books-cart-controls button{border:1px solid var(--border);background:var(--lavender);color:var(--primary-dark);min-width:38px;min-height:38px;border-radius:10px}
+.books-cart-controls .book-remove{background:transparent;color:var(--danger);padding:0 .5rem}
+.books-line-total{margin-left:auto;font-weight:750}
+.books-total{display:flex;align-items:baseline;justify-content:space-between;gap:1rem;margin:1rem 0}
+.books-total strong{color:var(--primary-dark)}
+#books fieldset{border:0;padding:0;margin:1.25rem 0;min-width:0}
+#books legend{font-weight:750}
+#books .small{overflow-wrap:anywhere}
+.books-summary-line{display:flex;justify-content:space-between;gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border);font-size:.94rem}
+.books-summary-line span:last-child{white-space:nowrap}
+@media(max-width:1000px){.books-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.books-order-layout{grid-template-columns:1fr}.book-cover-wrap{padding:1.1rem}.book-cover{min-height:390px}}
+@media(max-width:480px){.books-grid{grid-template-columns:1fr}.book-cover-wrap{padding:1.4rem 2rem}.book-cover{min-height:370px}.book-cover h3{font-size:1.3rem}}
+
+#bookQrImage{display:block;width:min(100%,280px);height:auto;margin:1rem auto;background:#fff;padding:8px}
+#bookQrArea h4{line-height:1.5}
+#bookOrderReference{overflow-wrap:anywhere}
+#bookPaymentPanel button{margin:.35rem .2rem .35rem 0}

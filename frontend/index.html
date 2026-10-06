@@ -184,6 +184,7 @@
       .consult-form-grid{grid-template-columns:1fr}.consult-form .full{grid-column:auto}
     }
   </style>
+  <link rel="stylesheet" href="./books.css">
 </head>
 <body>
 <a class="skip" href="#content">Skip to content</a>
@@ -193,6 +194,7 @@
     <nav aria-label="Main navigation">
       <button class="tab active" data-tab="home">เกี่ยวกับบ้านสุขใจ</button>
       <button class="tab" data-tab="psychologist">นักจิตวิทยาการปรึกษา</button>
+      <button class="tab" data-tab="books">หนังสือ</button>
       <button class="tab" data-tab="donation">บริจาค</button>
       <button class="tab" data-tab="consultation">นัดหมายปรึกษา</button>
     </nav>
@@ -432,6 +434,62 @@
 
     <div class="notice clinical">
       <strong>Scoring limitation:</strong> Voxtral is used here for realtime transcription. The displayed percentage is a transparent text-similarity game score based on the transcription; it is <strong>not</strong> a validated measurement of articulation, vowel formants, or clinical progress.
+    </div>
+  </section>
+
+  <section id="books" class="panel" aria-labelledby="booksHeading">
+    <div class="section-head books-heading">
+      <div><span class="eyebrow">จิตวิทยาเพื่อความเข้าใจและการเติบโต</span><h2 id="booksHeading">หนังสือ</h2></div>
+      <a class="btn secondary" href="#bookCart">ตะกร้าหนังสือ <span id="booksCartBadge">0</span></a>
+    </div>
+    <p class="lead">หนังสือชุดนี้เป็นผลงานของ รศ.ดร. จันทร์เพ็ญ ภูโสภา ครอบคลุมเนื้อหาด้านจิตวิทยา การแนะแนว สุขภาพจิต การให้คำปรึกษา และการประยุกต์ใช้ทฤษฎีทางจิตวิทยาในการจัดการเรียนการสอน เหมาะสำหรับครู นักศึกษา นักวิชาการ และผู้สนใจทั่วไป</p>
+    <p class="books-series-note">หนังสือ 5 เล่ม · เล่มละ 300 บาท</p>
+    <div id="bookCatalog" class="books-grid"></div>
+    <noscript><p class="notice">กรุณาเปิดใช้งาน JavaScript เพื่อดูหนังสือและใช้งานตะกร้า</p></noscript>
+    <p id="booksNotice" class="small" role="status" aria-live="polite"></p>
+    <div class="books-order-layout">
+      <article id="bookCart" class="card" aria-labelledby="bookCartHeading">
+        <h3 id="bookCartHeading">ตะกร้าหนังสือ</h3>
+        <div id="bookCartItems"></div>
+        <div class="books-total"><span>จำนวนหนังสือ</span><strong id="bookCartCount">0 เล่ม</strong></div>
+        <div class="books-total"><span>ยอดรวมทั้งหมด</span><strong id="bookCartTotal">0 บาท</strong></div>
+        <button id="bookCheckoutButton" class="btn primary" type="button" disabled>ดำเนินการชำระเงิน</button>
+        <p class="small">ยอดรวมเป็นราคาหนังสือ กรุณาตกลงวิธีรับหนังสือและค่าจัดส่งกับผู้ขายก่อนชำระเงิน</p>
+      </article>
+      <article id="bookCheckout" class="card" hidden aria-labelledby="bookCheckoutHeading">
+        <h3 id="bookCheckoutHeading" tabindex="-1">สรุปรายการสั่งซื้อ</h3>
+        <div id="bookCheckoutSummary"></div>
+        <form id="bookBuyerForm">
+          <fieldset id="bookBuyerFields">
+            <legend>ข้อมูลผู้สั่งซื้อ</legend>
+            <label for="bookBuyerName">ชื่อผู้สั่งซื้อ<input id="bookBuyerName" name="buyer_name" maxlength="120" autocomplete="name" required></label>
+            <label for="bookBuyerEmail">อีเมล<input id="bookBuyerEmail" name="buyer_email" type="email" maxlength="254" autocomplete="email" required></label>
+            <label for="bookBuyerPhone">เบอร์โทรศัพท์ (ไม่จำเป็นต้องระบุ)<input id="bookBuyerPhone" name="buyer_phone" type="tel" maxlength="30" autocomplete="tel"></label>
+            <p class="small">ตรวจสอบรายการก่อนสร้างคำสั่งซื้อ ข้อมูลนี้ใช้ติดต่อเกี่ยวกับคำสั่งซื้อ เมื่อสร้างแล้วจะไม่สามารถเปลี่ยนรายการหรือราคาในคำสั่งซื้อนั้นได้</p>
+            <button id="bookPaymentButton" class="btn primary" type="submit">ยืนยันและสร้างคำสั่งซื้อ</button>
+          </fieldset>
+        </form>
+        <p id="bookOrderStatus" class="status" role="status" aria-live="polite">ตรวจสอบรายการและกรอกข้อมูลผู้สั่งซื้อ</p>
+        <section id="bookPaymentPanel" class="notice" hidden aria-labelledby="bookPaymentHeading">
+          <h3 id="bookPaymentHeading" tabindex="-1">ชำระเงิน</h3>
+          <p id="bookOrderReference"></p>
+          <p><strong>วิธีชำระเงิน:</strong> พร้อมเพย์ (PromptPay)</p>
+          <p><strong>สถานะการชำระเงิน:</strong> <span id="bookPaymentState">รอการชำระเงิน</span></p>
+          <p id="bookOrderExpiry" class="small"></p>
+          <button id="bookPromptPayButton" class="btn primary" type="button">ชำระด้วยพร้อมเพย์</button>
+          <div id="bookQrArea" hidden>
+            <h4>สแกน QR Code เพื่อชำระเงิน</h4>
+            <p id="bookMerchantName"></p>
+            <img id="bookQrImage" alt="QR Code พร้อมเพย์สำหรับยอดคำสั่งซื้อนี้" width="280" height="280">
+            <p>กรุณาตรวจสอบยอดเงินและหมายเลขคำสั่งซื้อก่อนชำระ</p>
+            <p class="small">ตรวจสอบชื่อผู้รับเงินที่แสดงในแอปธนาคารให้ตรงกับผู้ขายก่อนยืนยันโอน</p>
+            <p><strong>การแสดง QR Code ไม่ได้หมายความว่าระบบได้รับการชำระเงินแล้ว</strong></p>
+            <p class="small">อย่าโอนซ้ำหากโอนแล้ว กรุณาเก็บหลักฐานและแจ้งหมายเลขคำสั่งซื้อแก่ผู้ขายเพื่อตรวจสอบยอดรับเงินจริง QR ที่บันทึกไว้ไม่สามารถยกเลิกจากแอปธนาคารได้ กรุณาอย่าโอนหลังหมดเวลา</p>
+          </div>
+          <button id="bookRefreshStatus" class="btn secondary" type="button">ตรวจสอบสถานะคำสั่งซื้อ</button>
+          <button id="bookNewOrder" class="btn secondary" type="button" hidden>เริ่มคำสั่งซื้อใหม่</button>
+        </section>
+      </article>
     </div>
   </section>
 
@@ -1020,5 +1078,6 @@
     box.textContent=`จำนวนเงินที่เลือกในระบบตัวอย่าง: ${value.toFixed(2)} ดอลลาร์สหรัฐ ต้องเชื่อมต่อผู้ให้บริการรับชำระเงินที่ปลอดภัยก่อนรับบริจาคจริง`;
   });
 </script>
+<script src="./books.js"></script>
 </body>
 </html>
