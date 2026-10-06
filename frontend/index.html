@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="th">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0" >
   <meta name="theme-color" content="#5b67d8" >
-  <title>Speak & Grow | Children's Speech Practice</title>
+  <title>บ้านสุขใจ | สุขภาวะทางใจในยุค AI</title>
   <style>
     :root{
       --primary:#5b67d8; --primary-dark:#424bb2; --accent:#ffb84d;
@@ -32,6 +32,17 @@
     main{max-width:1180px;margin:auto;padding:1.4rem 1rem 3rem}
     .panel{display:none;animation:fade .25s ease}
     .panel.active{display:block}
+    .panel[hidden]{display:none}
+    #consultation [hidden]{display:none}
+    nav{min-width:0}
+    #home h1{font-size:clamp(1.8rem,4vw,3.2rem);line-height:1.4}
+    #home h3{line-height:1.5}
+    #psychologist .profile{grid-template-columns:minmax(360px,.9fr) minmax(0,1.1fr)}
+    #psychologist .profile-name{font-size:clamp(1.1rem,2vw,1.5rem);white-space:nowrap;line-height:1.5}
+    #psychologist .portrait{padding:1.2rem}
+    #psychologist .psychologist-photo{display:block;width:100%;max-width:280px;height:auto;margin:0 auto;border-radius:18px}
+    @media(max-width:850px){#psychologist .profile{grid-template-columns:1fr}}
+    @media(max-width:400px){#psychologist .profile-name{white-space:normal;overflow-wrap:anywhere}}
     @keyframes fade{from{opacity:.3;transform:translateY(4px)}to{opacity:1;transform:none}}
     .hero{display:grid;grid-template-columns:1.25fr .75fr;gap:1.2rem;align-items:stretch}
     .hero-copy,.hero-art,.card{background:var(--surface);border:1px solid var(--border);border-radius:24px;padding:clamp(1.2rem,3vw,2.3rem);box-shadow:var(--shadow)}
@@ -178,14 +189,12 @@
 <a class="skip" href="#content">Skip to content</a>
 <header>
   <div class="nav-wrap">
-    <div class="brand"><span class="logo">🗣️</span><span>Speak & Grow</span></div>
+    <div class="brand"><span class="logo">🗣️</span><span>บ้านสุขใจ</span></div>
     <nav aria-label="Main navigation">
-      <button class="tab active" data-tab="home">Home</button>
-      <button class="tab" data-tab="therapist">Profile</button>
-      <button class="tab" data-tab="lessons">Sound Lessons</button>
-      <button class="tab" data-tab="game">AR Speech Game</button>
-      <button class="tab" data-tab="donation">Donation</button>
-      <button class="tab" data-tab="consultation">Consultation</button>
+      <button class="tab active" data-tab="home">เกี่ยวกับบ้านสุขใจ</button>
+      <button class="tab" data-tab="psychologist">นักจิตวิทยาการปรึกษา</button>
+      <button class="tab" data-tab="donation">บริจาค</button>
+      <button class="tab" data-tab="consultation">นัดหมายปรึกษา</button>
     </nav>
   </div>
 </header>
@@ -194,16 +203,16 @@
   <section id="home" class="panel active">
     <div class="hero">
       <div class="hero-copy">
-        <span class="eyebrow">Playful speech practice for children</span>
-        <h1>Small sounds.<br>Big confidence.</h1>
-        <p class="lead">A friendly practice space where children and caregivers can learn speech sounds, watch demonstrations, and play a voice-controlled AR-style game.</p>
+        <span class="eyebrow">พื้นที่สำหรับการรับฟังและเติบโต</span>
+        <h1>เกี่ยวกับบ้านสุขใจ</h1>
+        <p class="lead">ในยุคปัญญาประดิษฐ์และเทคโนโลยีดิจิทัล ชีวิตของเรามีความรวดเร็วและเชื่อมโยงกันมากขึ้น แต่ขณะเดียวกัน ความเครียด ความกดดันจากการเรียน การทำงาน ความสัมพันธ์ และการเปรียบเทียบตนเองกับผู้อื่นก็อาจเพิ่มขึ้นได้</p>
         <div class="actions">
-          <button class="btn primary jump" data-target="lessons">Start the “ee” lesson</button>
-          <button class="btn secondary jump" data-target="therapist">Meet the therapist</button>
+          <button class="btn primary jump" data-target="consultation">นัดหมายปรึกษา</button>
+          <button class="btn secondary jump" data-target="psychologist">รู้จักผู้ให้คำปรึกษา</button>
         </div>
-        <div class="notice clinical"><strong>Important:</strong> This educational website does not diagnose or replace assessment or treatment by a licensed speech-language professional.</div>
+        <div class="notice clinical">เว็บไซต์นี้ให้ข้อมูลเพื่อการเรียนรู้ ไม่ใช้แทนการประเมิน การวินิจฉัย หรือการดูแลรักษาโดยผู้เชี่ยวชาญ</div>
       </div>
-      <div class="hero-art mascot" aria-label="Smiling child illustration">
+      <div class="hero-art mascot" aria-label="ภาพเด็กยิ้ม">
         <div class="face">
           <span class="eye left"></span><span class="eye right"></span>
           <span class="mouth speaking"></span>
@@ -211,9 +220,9 @@
       </div>
     </div>
     <div class="grid">
-      <article class="card mini"><div class="icon">👂</div><h3>Listen</h3><p>Hear a clear sound model before trying it.</p></article>
-      <article class="card mini"><div class="icon">🪞</div><h3>Watch</h3><p>Observe mouth shape, tongue position, and airflow.</p></article>
-      <article class="card mini"><div class="icon">🎮</div><h3>Practice</h3><p>Use encouraging games—not grades—to repeat the sound.</p></article>
+      <article class="card mini"><div class="icon" aria-hidden="true">🌿</div><h3>สุขภาวะทางใจในยุค AI</h3><p>ท่ามกลางความเปลี่ยนแปลง การหมั่นสำรวจความรู้สึกและให้เวลาตนเองได้พัก เป็นส่วนหนึ่งของการดูแลสุขภาพใจและคุณภาพชีวิต</p></article>
+      <article class="card mini"><div class="icon" aria-hidden="true">⚖️</div><h3>ใช้เทคโนโลยีอย่างสมดุล</h3><p>เทคโนโลยีและ AI สามารถเป็นเครื่องมือที่ช่วยสนับสนุนชีวิตของเราได้ แต่ไม่ควรแทนที่ความเข้าใจ ความสัมพันธ์ และการดูแลจากมนุษย์ บ้านสุขใจจึงมุ่งส่งเสริมให้ทุกคนใช้เทคโนโลยีอย่างสมดุล พร้อมทั้งดูแลสุขภาพใจและคุณภาพชีวิตไปพร้อมกัน</p></article>
+      <article class="card mini"><div class="icon" aria-hidden="true">👂</div><h3>พื้นที่สำหรับการรับฟังและเติบโต</h3><p>บ้านสุขใจจึงถูกสร้างขึ้นเพื่อเป็นพื้นที่ที่ให้ความสำคัญกับสุขภาวะทางใจ การรับฟังอย่างเข้าใจ การดูแลตนเอง และการขอความช่วยเหลือเมื่อจำเป็น</p></article>
     </div>
   </section>
 
@@ -273,7 +282,64 @@
     </div>
   </section>
 
-  <section id="lessons" class="panel">
+  <section id="psychologist" class="panel">
+    <div class="section-head"><span class="eyebrow">การดูแลโดยผู้เชี่ยวชาญ</span><h2>นักจิตวิทยาการปรึกษา</h2></div>
+    <div class="profile">
+      <aside class="card portrait">
+        <div>
+          <img class="psychologist-photo" src="./assets/67311039_30-10-2024_07-51-36.jpg" alt="รศ.ดร. จันทร์เพ็ญ ภูโสภา" width="350" height="500">
+          <h3 class="profile-name">รศ.ดร. จันทร์เพ็ญ ภูโสภา</h3>
+          <p class="profile-role">นักจิตวิทยาการปรึกษา</p>
+          <span class="badge">นักจิตวิทยาการปรึกษา</span>
+        </div>
+      </aside>
+      <div class="profile-content">
+        <article class="card profile-card">
+          <h3>เกี่ยวกับฉัน</h3>
+          <p>สวัสดีค่ะ ยินดีที่ได้รู้จักทุกคนที่กำลังมองหาพื้นที่ปลอดภัยในการระบายใจค่ะ ดิฉันเชื่อว่าในวันที่ชีวิตต้องเผชิญกับเรื่องหนัก การมีใครสักคนที่รับฟังอย่างเข้าใจและไม่ตัดสิน คือจุดเริ่มต้นสำคัญของการฟื้นฟูพลังใจ</p>
+          <p>มาร่วมปลดล็อกความเครียด ค้นหาแนวทางในการรับมือกับปัญหา และเติบโตไปด้วยกันนะคะ</p>
+        </article>
+        <article class="card profile-card">
+          <h3>ความเชี่ยวชาญเฉพาะทาง</h3>
+          <ul class="profile-list">
+            <li>การจัดการความเครียด</li>
+            <li>ปัญหาความสัมพันธ์ ความรัก และครอบครัว</li>
+            <li>การพัฒนาความมั่นใจในตนเองและการเห็นคุณค่าในตนเอง</li>
+            <li>การพัฒนาตนเองและการสร้างกำลังใจ</li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>ประวัติการศึกษาและการฝึกอบรม</h3>
+          <ul class="profile-list">
+            <li>ปริญญาโท สาขาจิตวิทยาการให้คำปรึกษา</li>
+            <li>ปริญญาเอก สาขาจิตวิทยาการศึกษาและการแนะแนว</li>
+            <li>การอบรมด้านจิตวิทยาแนวพุทธ</li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>ประสบการณ์</h3>
+          <ul class="profile-list">
+            <li>สอนในระดับอุดมศึกษาเกี่ยวกับการให้คำปรึกษา ทฤษฎีการให้คำปรึกษา เทคนิค และกระบวนการให้คำปรึกษา เป็นระยะเวลามากกว่า 10 ปี</li>
+            <li>มีประสบการณ์ด้านการให้คำปรึกษามากกว่า 10 ปี</li>
+            <li>มีประสบการณ์จัดหลักสูตรฝึกอบรมระยะสั้นด้านจิตวิทยา เช่น
+              <ul>
+                <li>การให้คำปรึกษาเบื้องต้นและขั้นสูง</li>
+                <li>จิตวิทยาผู้สูงอายุ</li>
+                <li>จิตวิทยาเด็กและวัยรุ่น</li>
+                <li>จิตวิทยาในชั้นเรียน</li>
+              </ul>
+            </li>
+          </ul>
+        </article>
+        <article class="card profile-card">
+          <h3>แนวคิดและรูปแบบการให้คำปรึกษา</h3>
+          <p>เน้นการรับฟังอย่างเข้าใจ ไม่ตัดสิน และร่วมมือกับผู้รับบริการเพื่อค้นหาแนวทางในการรับมือและแก้ไขปัญหา พร้อมทั้งส่งเสริมกำลังใจและความเข้มแข็งในการดำเนินชีวิตต่อไป</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section id="lessons" class="panel" hidden inert>
     <div class="section-head"><span class="eyebrow">Basic vowel lesson</span><h2>How to pronounce the “e” sound</h2><p class="lead">This demo uses the English long “e” sound, as in <strong>see</strong>. A clinician should adapt the target to the child’s language and therapy plan.</p></div>
     <div class="sound-board">
       <article class="card">
@@ -311,7 +377,7 @@
     </div>
   </section>
 
-  <section id="game" class="panel">
+  <section id="game" class="panel" hidden inert>
     <div class="section-head">
       <span class="eyebrow">Voxtral realtime prototype</span>
       <h2>“Run to the Goal” vowel game</h2>
@@ -370,89 +436,97 @@
   </section>
 
   <section id="donation" class="panel">
-    <div class="section-head"><span class="eyebrow">Support access</span><h2>Donation</h2><p class="lead">Help fund clinician-reviewed learning materials, family workshops, accessible technology, and subsidized sessions.</p></div>
+    <div class="section-head"><span class="eyebrow">สนับสนุนโครงการ</span><h2>บริจาค</h2><p class="lead">ร่วมสนับสนุนสื่อการเรียนรู้ที่ผ่านการทบทวนโดยผู้เชี่ยวชาญ กิจกรรมสำหรับครอบครัว เทคโนโลยีที่เข้าถึงได้ และการช่วยเหลือค่าใช้จ่ายในการรับคำปรึกษา</p></div>
     <div class="donation">
       <article class="card">
-        <h3>Choose an amount</h3>
+        <h3>เลือกจำนวนเงินบริจาค</h3>
         <div class="amounts">
           <button class="amount" data-amount="10">$10</button>
           <button class="amount selected" data-amount="25">$25</button>
           <button class="amount" data-amount="50">$50</button>
         </div>
-        <label for="customAmount">Custom amount (USD)</label>
-        <input id="customAmount" type="number" min="1" step="1" placeholder="Enter amount">
-        <label for="donorName">Name</label>
-        <input id="donorName" autocomplete="name" placeholder="Optional">
+        <label for="customAmount">ระบุจำนวนเงิน (ดอลลาร์สหรัฐ)</label>
+        <input id="customAmount" type="number" min="1" step="1" placeholder="กรอกจำนวนเงิน">
+        <label for="donorName">ชื่อ</label>
+        <input id="donorName" autocomplete="name" placeholder="ไม่จำเป็นต้องระบุ">
         <label class="form-check" style="display:flex;gap:.55rem;align-items:flex-start;font-weight:500">
-          <input id="anonymous" type="checkbox" style="width:auto;margin-top:.35rem"> Make this donation anonymous
+          <input id="anonymous" type="checkbox" style="width:auto;margin-top:.35rem"> ไม่ประสงค์ออกนามในการบริจาค
         </label>
-        <button id="donateBtn" class="btn primary" style="margin-top:1rem">Continue to secure payment</button>
-        <div id="donationStatus" class="status" aria-live="polite">Demo only—no payment processor is connected.</div>
+        <button id="donateBtn" class="btn primary" style="margin-top:1rem">ดำเนินการชำระเงินอย่างปลอดภัย</button>
+        <div id="donationStatus" class="status" aria-live="polite">ส่วนนี้เป็นตัวอย่างเท่านั้น ยังไม่ได้เชื่อมต่อระบบรับชำระเงิน</div>
       </article>
       <aside class="card">
-        <h3>Transparency</h3>
-        <p>A real donation page should clearly display:</p>
+        <h3>ความโปร่งใส</h3>
+        <p>หน้ารับบริจาคที่เปิดใช้งานจริงควรแสดงข้อมูลต่อไปนี้อย่างชัดเจน:</p>
         <ul>
-          <li>Registered organization name and number</li>
-          <li>How funds will be used</li>
-          <li>Refund and tax-receipt policies</li>
-          <li>Secure payment provider</li>
-          <li>Privacy policy and contact information</li>
+          <li>ชื่อและเลขทะเบียนองค์กร</li>
+          <li>วัตถุประสงค์ในการใช้เงินบริจาค</li>
+          <li>นโยบายการคืนเงินและการออกใบเสร็จเพื่อใช้สิทธิทางภาษี</li>
+          <li>ผู้ให้บริการรับชำระเงินที่ปลอดภัย</li>
+          <li>นโยบายความเป็นส่วนตัวและข้อมูลติดต่อ</li>
         </ul>
-        <div class="notice">Connect a trusted payment service only after the organization and donation process have been legally reviewed.</div>
+        <div class="notice">ควรเชื่อมต่อบริการรับชำระเงินที่น่าเชื่อถือเมื่อองค์กรและกระบวนการรับบริจาคผ่านการตรวจสอบด้านกฎหมายแล้วเท่านั้น</div>
       </aside>
     </div>
   </section>
 
   <section id="consultation" class="panel">
     <div class="section-head">
-      <span class="eyebrow">Online professional support</span>
-      <h2>Book a speech consultation</h2>
-      <p class="lead">A parent or guardian can reserve an online appointment with a qualified speech-language therapist for professional guidance and support.</p>
+      <span class="eyebrow">บริการปรึกษาออนไลน์โดยผู้เชี่ยวชาญ</span>
+      <h2>นัดหมายปรึกษา</h2>
+      <p class="lead">ผู้รับบริการหรือผู้ปกครองตามกฎหมายสามารถนัดหมายออนไลน์กับผู้เชี่ยวชาญด้านการแก้ไขการพูด เพื่อรับคำแนะนำและการดูแลอย่างเหมาะสม</p>
     </div>
     <div class="consultation-layout">
       <article class="card">
         <form id="consultationForm" class="consult-form">
           <div class="consult-form-grid">
-            <label for="guardianName">Guardian name<input id="guardianName" name="guardian_name" maxlength="120" required autocomplete="name"></label>
-            <label for="guardianEmail">Guardian email<input id="guardianEmail" name="guardian_email" type="email" required autocomplete="email"></label>
-            <label for="childDisplayName">Child display name (optional)<input id="childDisplayName" name="child_display_name" maxlength="80"></label>
-            <label for="childAgeRange">Child age range (optional)<select id="childAgeRange" name="child_age_range"><option value="">Prefer not to say</option><option>3–5 years</option><option>6–8 years</option><option>9–12 years</option><option>13–17 years</option></select></label>
-            <label class="full" for="consultationReason">Consultation reason<textarea id="consultationReason" name="consultation_reason" minlength="10" maxlength="1000" rows="4" required placeholder="Briefly describe the support you are seeking. Do not include highly sensitive medical details."></textarea></label>
-            <label for="appointmentDate">Appointment date<input id="appointmentDate" name="appointment_date" type="date" required></label>
-            <label for="appointmentTime">Appointment time<input id="appointmentTime" name="appointment_time" type="time" required></label>
-            <label for="consultationDuration">Duration<select id="consultationDuration" name="duration_minutes" required><option value="30">30 minutes</option><option value="45" selected>45 minutes</option><option value="60">60 minutes</option></select></label>
-            <label for="consultationTimezone">Time zone<input id="consultationTimezone" name="timezone" readonly></label>
-            <label class="full consent-row"><input id="consultationConsent" name="consent_confirmed" type="checkbox" required><span>I am the parent or guardian and consent to submitting this appointment request.</span></label>
+            <label for="guardianName">ชื่อ<input id="guardianName" name="guardian_name" maxlength="120" required autocomplete="name"></label>
+            <label for="guardianEmail">อีเมล<input id="guardianEmail" name="guardian_email" type="email" required autocomplete="email"></label>
+            <label for="childAgeRange">ช่วงอายุ<select id="childAgeRange" name="child_age_range" required><option value="20+ years">20 ปีขึ้นไป</option><option value="under 20 years">ต่ำกว่า 20 ปี</option></select></label>
+            <label class="full" for="consultationReason">เรื่องที่ต้องการปรึกษา<textarea id="consultationReason" name="consultation_reason" minlength="10" maxlength="1000" rows="4" required placeholder="อธิบายเรื่องที่ต้องการขอคำปรึกษาโดยสังเขป โปรดไม่ระบุข้อมูลทางการแพทย์ที่มีความละเอียดอ่อนสูง"></textarea></label>
+            <label for="appointmentDate">วันที่นัดหมาย<input id="appointmentDate" name="appointment_date" type="date" required></label>
+            <label for="appointmentTime">ช่วงเวลานัดหมาย<select id="appointmentTime" name="appointment_time" required disabled><option value="">กรุณาเลือกวันที่ก่อน</option></select></label>
+            <label for="consultationTimezone">เขตเวลา<input id="consultationTimezone" name="timezone" readonly></label>
+            <label id="adultConsentSection" class="full consent-row"><input id="consultationConsent" name="consent_confirmed" type="checkbox" required><span>ข้าพเจ้าขอยืนยันว่ามีอายุ 20 ปีบริบูรณ์ขึ้นไป และยินยอมเข้ารับการปรึกษาด้วยตนเอง หากข้าพเจ้าอายุต่ำกว่า 20 ปี ข้าพเจ้าเข้าใจว่าบิดา มารดา หรือผู้ปกครองตามกฎหมายจะต้องเป็นผู้กรอกแบบฟอร์มยินยอมของผู้ปกครอง</span></label>
           </div>
-          <button id="bookConsultation" class="btn primary" type="submit" style="margin-top:1rem">Book appointment</button>
+          <fieldset id="guardianConsentSection" hidden disabled style="min-width:0;margin-top:1rem">
+            <legend>กรณีผู้รับบริการอายุต่ำกว่า 20 ปี</legend>
+            <p>ให้บิดา มารดา หรือผู้ปกครองตามกฎหมายเป็นผู้กรอกและยืนยันส่วนนี้ คำเชิญนัดหมายจะส่งไปยังอีเมลผู้ปกครอง</p>
+            <div class="consult-form-grid">
+              <label for="legalGuardianName">ชื่อผู้ปกครองตามกฎหมาย<input id="legalGuardianName" maxlength="120" required autocomplete="name"></label>
+              <label for="legalGuardianEmail">อีเมลผู้ปกครองตามกฎหมาย<input id="legalGuardianEmail" type="email" required autocomplete="email"></label>
+              <label class="full" for="guardianRelationship">ความสัมพันธ์กับผู้รับบริการ<input id="guardianRelationship" maxlength="120" required></label>
+              <label class="full consent-row"><input id="guardianConsent" type="checkbox" required><span>ข้าพเจ้าขอยืนยันว่าเป็นบิดา มารดา หรือผู้ปกครองตามกฎหมายของผู้รับบริการ และยินยอมให้ผู้รับบริการเข้ารับการปรึกษา รวมถึงยินยอมให้ส่งข้อมูลที่จำเป็นเพื่อดำเนินการนัดหมาย</span></label>
+            </div>
+          </fieldset>
+          <button id="bookConsultation" class="btn primary" type="submit" style="margin-top:1rem">ยืนยันการนัดหมาย</button>
         </form>
-        <div id="consultationStatus" class="status" aria-live="polite">Complete the form to request an appointment.</div>
+        <div id="consultationStatus" class="status" aria-live="polite">กรุณากรอกแบบฟอร์มเพื่อขอนัดหมายปรึกษา</div>
       </article>
       <aside class="card consultation-details">
-        <span class="badge">Credential verification required</span>
-        <h3 style="margin-top:.8rem">Therapist name placeholder</h3>
+        <span class="badge">ต้องตรวจสอบคุณวุฒิผู้ให้บริการก่อนเปิดใช้งาน</span>
+        <h3 style="margin-top:.8rem">พื้นที่สำหรับระบุชื่อผู้ให้คำปรึกษา</h3>
         <dl class="detail-list">
-          <dt>Credential</dt><dd>Verified speech-language therapist credential placeholder</dd>
-          <dt>Video</dt><dd>The actual consultation opens securely in Google Meet in a new tab.</dd>
-          <dt>Time zone</dt><dd>Appointment choices use your device's time zone.</dd>
+          <dt>คุณวุฒิ</dt><dd>พื้นที่สำหรับระบุคุณวุฒิด้านการแก้ไขการพูดที่ผ่านการตรวจสอบแล้ว</dd>
+          <dt>การปรึกษาผ่านวิดีโอ</dt><dd>การปรึกษาจะเปิดผ่าน Google Meet อย่างปลอดภัยในแท็บใหม่</dd>
+          <dt>เขตเวลา</dt><dd>เวลานัดหมายอ้างอิง Asia/Bangkok ทุกนัดใช้เวลา 50 นาที</dd>
         </dl>
-        <div id="consultationCountdown" class="status countdown" aria-live="polite">No appointment booked</div>
-        <button id="joinConsultation" class="btn secondary" type="button" disabled>Join consultation</button>
+        <div id="consultationCountdown" class="status countdown" aria-live="polite">ยังไม่มีการนัดหมาย</div>
+        <button id="joinConsultation" class="btn secondary" type="button" disabled>เข้าร่วมการปรึกษา</button>
         <div id="appointmentCard" class="appointment-card" hidden>
-          <h3>Appointment confirmation</h3>
+          <h3>ข้อมูลยืนยันการนัดหมาย</h3>
           <div class="appointment-grid">
-            <div><strong>Start</strong><span id="appointmentStart">—</span></div>
-            <div><strong>End</strong><span id="appointmentEnd">—</span></div>
-            <div><strong>Therapist</strong><span id="appointmentTherapist">Therapist name placeholder</span></div>
-            <div><strong>Status</strong><span id="appointmentState">—</span></div>
+            <div><strong>เวลาเริ่ม</strong><span id="appointmentStart">—</span></div>
+            <div><strong>เวลาสิ้นสุด</strong><span id="appointmentEnd">—</span></div>
+            <div><strong>ผู้ให้คำปรึกษา</strong><span id="appointmentTherapist">พื้นที่สำหรับระบุชื่อผู้ให้คำปรึกษา</span></div>
+            <div><strong>สถานะการนัดหมาย</strong><span id="appointmentState">—</span></div>
           </div>
-          <p class="small">Google sends the Calendar invitation after creation; you may need to accept it. Reminder delivery depends on Google Calendar and recipient settings and is not guaranteed. No separate confirmation click is required in this prototype.</p>
+          <p class="small">Google จะส่งคำเชิญผ่าน Google Calendar หลังสร้างนัดหมาย คุณอาจต้องกดตอบรับคำเชิญ การแจ้งเตือนขึ้นอยู่กับการตั้งค่า Google Calendar และผู้รับ จึงไม่สามารถรับประกันการแจ้งเตือนได้ ระบบต้นแบบนี้ไม่ต้องกดยืนยันการนัดหมายเพิ่มเติม</p>
         </div>
       </aside>
     </div>
     <div class="notice clinical">
-      <strong>Clinical and privacy notice:</strong> This consultation service is not for emergencies. A parent or guardian should attend where required. Do not submit highly sensitive medical information in this prototype. Actual credential, privacy, consent, cancellation, and safeguarding policies must be reviewed before deployment.
+      <strong>ข้อควรทราบเกี่ยวกับบริการและความเป็นส่วนตัว:</strong> บริการปรึกษานี้ไม่รองรับเหตุฉุกเฉิน พ่อแม่หรือผู้ปกครองควรเข้าร่วมเมื่อจำเป็น โปรดไม่ส่งข้อมูลทางการแพทย์ที่มีความละเอียดอ่อนสูงในระบบต้นแบบนี้ ต้องทบทวนคุณวุฒิผู้ให้บริการและนโยบายด้านความเป็นส่วนตัว ความยินยอม การยกเลิก และการคุ้มครองผู้รับบริการก่อนเปิดใช้งานจริง
     </div>
   </section>
 </main>
@@ -483,8 +557,54 @@
   const consultationCountdown = document.getElementById('consultationCountdown');
   const consultationStatus = document.getElementById('consultationStatus');
   const consultationTimezone = document.getElementById('consultationTimezone');
-  const detectedTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Bangkok';
-  consultationTimezone.value = detectedTimezone;
+  const bookingTimezone = 'Asia/Bangkok';
+  consultationTimezone.value = bookingTimezone;
+  const appointmentDate = document.getElementById('appointmentDate');
+  const appointmentTime = document.getElementById('appointmentTime');
+  const ageRange = document.getElementById('childAgeRange');
+  const adultConsent = document.getElementById('consultationConsent');
+  const guardianSection = document.getElementById('guardianConsentSection');
+  function bangkokDate(date){
+    const parts = new Intl.DateTimeFormat('en-US', {timeZone:bookingTimezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);
+    const part = type => parts.find(item => item.type === type).value;
+    return `${part('year')}-${part('month')}-${part('day')}`;
+  }
+  function availableSlots(date, now = new Date()){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(date))return [];
+    const day = new Date(`${date}T00:00:00+07:00`);
+    if(Number.isNaN(day.getTime()) || bangkokDate(day)!==date)return [];
+    const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+    const slots = weekday===0 || weekday===6 ? [['10:00','10:50'],['19:30','20:20']] : [['19:10','20:00']];
+    return slots.filter(([start]) => {
+      const time = new Date(`${date}T${start}:00+07:00`).getTime();
+      return time>now.getTime() && time<=now.getTime()+180*86400000;
+    });
+  }
+  function updateSlots(){
+    const now = new Date();
+    appointmentDate.min = bangkokDate(now);
+    appointmentDate.max = bangkokDate(new Date(now.getTime()+180*86400000));
+    const previous = appointmentTime.value;
+    const slots = availableSlots(appointmentDate.value, now);
+    appointmentTime.replaceChildren(...slots.map(([start,end]) => new Option(`${start}–${end}`,start)));
+    appointmentTime.disabled = slots.length===0;
+    if(!slots.length)appointmentTime.add(new Option('ไม่มีช่วงเวลาที่เลือกได้ กรุณาเลือกวันที่',''));
+    if(slots.some(([start]) => start===previous))appointmentTime.value=previous;
+  }
+  function updateConsentMode(){
+    const minor = ageRange.value==='under 20 years';
+    document.getElementById('adultConsentSection').hidden=minor;
+    adultConsent.disabled=minor;
+    adultConsent.required=!minor;
+    adultConsent.checked=false;
+    guardianSection.hidden=!minor;
+    guardianSection.disabled=!minor;
+    document.getElementById('guardianConsent').checked=false;
+  }
+  appointmentDate.addEventListener('change',updateSlots);
+  ageRange.addEventListener('change',updateConsentMode);
+  updateSlots();
+  updateConsentMode();
   let bookedAppointment = null;
   let consultationPoll = null;
 
@@ -494,18 +614,41 @@
     }
   });
 
+  // Translate API display text without changing response fields or booking state.
+  function consultationText(value){
+    const messages = {
+      confirmed:'ยืนยันการนัดหมายแล้ว',
+      conference_pending:'กำลังจัดเตรียมลิงก์การประชุม',
+      tentative:'รอการยืนยัน',
+      cancelled:'ยกเลิกการนัดหมายแล้ว',
+      'Appointment created. Google Calendar has sent the invitation.':'สร้างนัดหมายแล้ว Google Calendar ได้ส่งคำเชิญแล้ว',
+      'Appointment created. The video meeting link is still being prepared.':'สร้างนัดหมายแล้ว กำลังจัดเตรียมลิงก์การประชุมวิดีโอ',
+      'Too many requests. Please try again later.':'มีคำขอมากเกินไป กรุณาลองใหม่ภายหลัง',
+      'The selected time zone is invalid.':'เขตเวลาที่เลือกไม่ถูกต้อง',
+      'Appointment time must include a time zone.':'เวลานัดหมายต้องระบุเขตเวลา',
+      'The appointment must be in the future.':'กรุณาเลือกเวลานัดหมายในอนาคต',
+      'Appointments may be booked up to 180 days ahead.':'สามารถนัดหมายล่วงหน้าได้ไม่เกิน 180 วัน',
+      'Parental or guardian consent is required.':'ต้องได้รับความยินยอมจากพ่อแม่หรือผู้ปกครอง',
+      'Google Calendar is not configured.':'บริการปฏิทินยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง',
+      'Google Calendar is not authorized.':'บริการปฏิทินยังไม่พร้อมใช้งาน กรุณาลองใหม่ภายหลัง',
+      'The appointment could not be created. Please try again later.':'ไม่สามารถสร้างนัดหมายได้ กรุณาลองใหม่ภายหลัง'
+    };
+    if(typeof value==='string' && /[ก-๙]/.test(value))return value;
+    return Object.hasOwn(messages,value) ? messages[value] : 'ไม่สามารถแสดงรายละเอียดสถานะได้ กรุณาตรวจสอบข้อมูลหรือลองใหม่ภายหลัง';
+  }
+
   function renderCountdown(){
-    if(!bookedAppointment){consultationCountdown.textContent='No appointment booked';return}
+    if(!bookedAppointment){consultationCountdown.textContent='ยังไม่มีการนัดหมาย';return}
     const start = new Date(bookedAppointment.startTime);
     const end = new Date(bookedAppointment.endTime);
     const now = new Date();
-    if(now > end){consultationCountdown.textContent='Consultation ended';stopConsultationPolling();return}
-    if(bookedAppointment.joinAllowed){consultationCountdown.textContent='Consultation is ready';return}
+    if(now > end){consultationCountdown.textContent='การปรึกษาสิ้นสุดแล้ว';stopConsultationPolling();return}
+    if(bookedAppointment.joinAllowed){consultationCountdown.textContent='พร้อมเข้าร่วมการปรึกษา';return}
     const minutesRemaining = Math.max(0, Math.ceil((start-now)/60000));
     const days = Math.floor(minutesRemaining / 1440);
     const hours = Math.floor((minutesRemaining % 1440) / 60);
     const minutes = minutesRemaining % 60;
-    consultationCountdown.textContent = `${days} days, ${hours} hours, ${minutes} minutes until consultation`;
+    consultationCountdown.textContent = `อีก ${days} วัน ${hours} ชั่วโมง ${minutes} นาที ถึงเวลาปรึกษา`;
   }
 
   function stopConsultationPolling(){
@@ -523,44 +666,56 @@
       joinConsultationBtn.disabled=!(bookedAppointment.joinAllowed&&bookedAppointment.meetUrl);
       renderCountdown();
     }catch(_){
-      consultationStatus.textContent='Appointment booked, but live status is temporarily unavailable.';
+      consultationStatus.textContent='นัดหมายเรียบร้อยแล้ว แต่ยังไม่สามารถตรวจสอบสถานะล่าสุดได้ชั่วคราว';
     }
   }
 
   consultationForm.addEventListener('submit', async event => {
     event.preventDefault();
     if(!consultationForm.reportValidity())return;
-    const localStart=new Date(`${document.getElementById('appointmentDate').value}T${document.getElementById('appointmentTime').value}`);
-    if(Number.isNaN(localStart.getTime())){consultationStatus.className='status bad';consultationStatus.textContent='Choose a valid appointment date and time.';return}
+    const selectedSlot = appointmentTime.value;
+    if(!availableSlots(appointmentDate.value).some(([start]) => start===selectedSlot)){
+      updateSlots();
+      consultationStatus.className='status bad';
+      consultationStatus.textContent='กรุณาเลือกช่วงเวลานัดหมายในอนาคต ภายใน 180 วัน';
+      return;
+    }
+    const minor = ageRange.value==='under 20 years';
+    const localStart=new Date(`${appointmentDate.value}T${selectedSlot}:00+07:00`);
+    if(Number.isNaN(localStart.getTime())){consultationStatus.className='status bad';consultationStatus.textContent='กรุณาเลือกวันที่และเวลานัดหมายให้ถูกต้อง';return}
     const payload={
       guardian_name:document.getElementById('guardianName').value.trim(),
       guardian_email:document.getElementById('guardianEmail').value.trim(),
-      child_display_name:document.getElementById('childDisplayName').value.trim()||null,
       child_age_range:document.getElementById('childAgeRange').value||null,
       consultation_reason:document.getElementById('consultationReason').value.trim(),
       appointment_start:localStart.toISOString(),
-      duration_minutes:Number(document.getElementById('consultationDuration').value),
-      timezone:consultationTimezone.value,
-      consent_confirmed:document.getElementById('consultationConsent').checked
+      duration_minutes:50,
+      timezone:bookingTimezone,
+      consent_confirmed:!minor && adultConsent.checked,
+      under_20:minor,
+      legal_guardian_name:minor ? document.getElementById('legalGuardianName').value.trim() : null,
+      legal_guardian_email:minor ? document.getElementById('legalGuardianEmail').value.trim() : null,
+      guardian_relationship:minor ? document.getElementById('guardianRelationship').value.trim() : null,
+      guardian_consent_confirmed:minor && document.getElementById('guardianConsent').checked
     };
     bookConsultationBtn.disabled=true;
     consultationStatus.className='status';
-    consultationStatus.textContent='Creating your appointment securely…';
+    consultationStatus.textContent='กำลังสร้างนัดหมายของคุณอย่างปลอดภัย…';
     try{
       const response=await fetch(`${BACKEND_URL}/api/consultations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
       const result=await response.json();
       if(!response.ok){
         consultationStatus.className='status bad';
-        consultationStatus.textContent=response.status===409?'The selected time is no longer available. Please choose another time.':(typeof result.detail==='string'?result.detail:'Please check the appointment information and try again.');
+        consultationStatus.textContent=response.status===409?'เวลาที่เลือกไม่ว่างแล้ว กรุณาเลือกเวลาอื่น':(typeof result.detail==='string'?consultationText(result.detail):'กรุณาตรวจสอบข้อมูลการนัดหมายแล้วลองอีกครั้ง');
         return;
       }
       bookedAppointment={eventId:result.event_id,meetUrl:result.meet_url,startTime:result.start_time,endTime:result.end_time,joinAllowed:false};
-      document.getElementById('appointmentStart').textContent=new Date(result.start_time).toLocaleString();
-      document.getElementById('appointmentEnd').textContent=new Date(result.end_time).toLocaleString();
-      document.getElementById('appointmentState').textContent=result.status;
+      document.getElementById('appointmentStart').textContent=new Date(result.start_time).toLocaleString('th-TH',{timeZone:bookingTimezone});
+      document.getElementById('appointmentEnd').textContent=new Date(result.end_time).toLocaleString('th-TH',{timeZone:bookingTimezone});
+      document.getElementById('appointmentState').textContent=consultationText(result.status);
       document.getElementById('appointmentCard').hidden=false;
       consultationStatus.className='status good';
-      consultationStatus.textContent=result.message;
+      consultationStatus.textContent=consultationText(result.message);
       joinConsultationBtn.disabled=true;
       renderCountdown();
       await refreshConsultationStatus();
@@ -568,7 +723,7 @@
       consultationPoll=setInterval(refreshConsultationStatus,60000);
     }catch(_){
       consultationStatus.className='status bad';
-      consultationStatus.textContent='The booking service is unavailable. Please try again later.';
+      consultationStatus.textContent='ไม่สามารถใช้บริการนัดหมายได้ในขณะนี้ กรุณาลองใหม่ภายหลัง';
     }finally{bookConsultationBtn.disabled=false}
   });
 
@@ -860,9 +1015,9 @@
   document.getElementById('donateBtn').addEventListener('click',()=>{
     const value=Number(document.getElementById('customAmount').value)||chosen;
     const box=document.getElementById('donationStatus');
-    if(!value || value<1){box.className='status bad';box.textContent='Please enter a valid donation amount.';return}
+    if(!value || value<1){box.className='status bad';box.textContent='กรุณาระบุจำนวนเงินบริจาคให้ถูกต้อง';return}
     box.className='status good';
-    box.textContent=`Demo selection: $${value.toFixed(2)}. Connect a secure payment provider for real donations.`;
+    box.textContent=`จำนวนเงินที่เลือกในระบบตัวอย่าง: ${value.toFixed(2)} ดอลลาร์สหรัฐ ต้องเชื่อมต่อผู้ให้บริการรับชำระเงินที่ปลอดภัยก่อนรับบริจาคจริง`;
   });
 </script>
 </body>

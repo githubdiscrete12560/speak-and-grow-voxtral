@@ -14,15 +14,21 @@ from pydantic import ValidationError
 from backend import backend
 
 
+def future_slot(weekday=0, hour=19, minute=10):
+    day = datetime.now(backend.ZoneInfo("Asia/Bangkok")) + timedelta(days=7)
+    day += timedelta(days=(weekday - day.weekday()) % 7)
+    return day.replace(hour=hour, minute=minute, second=0, microsecond=0)
+
+
 def valid_payload(**overrides):
     payload = {
         "guardian_name": "Parent Example",
         "guardian_email": "parent@example.com",
         "child_display_name": "Child",
-        "child_age_range": "6-8 years",
+        "child_age_range": "20+ years",
         "consultation_reason": "General speech-language consultation request.",
-        "appointment_start": datetime.now(timezone.utc) + timedelta(days=2),
-        "duration_minutes": 45,
+        "appointment_start": future_slot(),
+        "duration_minutes": 50,
         "timezone": "Asia/Bangkok",
         "consent_confirmed": True,
     }
@@ -135,10 +141,10 @@ class ConsultationTests(unittest.TestCase):
     def test_insert_options_and_unique_conference_request_ids(self):
         booking = backend.ConsultationRequest(**valid_payload())
         event_one = backend.build_calendar_event(
-            booking, booking.appointment_start, booking.appointment_start + timedelta(minutes=45)
+            booking, booking.appointment_start, booking.appointment_start + timedelta(minutes=50)
         )
         event_two = backend.build_calendar_event(
-            booking, booking.appointment_start, booking.appointment_start + timedelta(minutes=45)
+            booking, booking.appointment_start, booking.appointment_start + timedelta(minutes=50)
         )
         self.assertNotEqual(
             event_one["conferenceData"]["createRequest"]["requestId"],
@@ -150,6 +156,74 @@ class ConsultationTests(unittest.TestCase):
             backend.create_consultation(booking)
         self.assertEqual(service.event_resource.insert_kwargs["conferenceDataVersion"], 1)
         self.assertEqual(service.event_resource.insert_kwargs["sendUpdates"], "all")
+
+    def test_schedule_and_calendar_boundaries(self):
+        for weekday in range(7):
+            slots = [(19, 10)] if weekday < 5 else [(10, 0), (19, 30)]
+            for hour, minute in slots:
+                with self.subTest(weekday=weekday, hour=hour):
+                    service = FakeService()
+                    booking = backend.ConsultationRequest(**valid_payload(
+                        appointment_start=future_slot(weekday, hour, minute).astimezone(timezone.utc)))
+                    with patch.object(backend, "get_google_calendar_service", return_value=service), \
+                         patch.object(backend, "check_calendar_conflict", return_value=False):
+                        result = backend.create_consultation(booking)
+                    event = service.event_resource.insert_kwargs["body"]
+                    start = datetime.fromisoformat(event["start"]["dateTime"])
+                    end = datetime.fromisoformat(event["end"]["dateTime"])
+                    self.assertEqual((start.hour, start.minute), (hour, minute))
+                    self.assertEqual(end - start, timedelta(minutes=50))
+                    self.assertEqual(result.end_time - result.start_time, timedelta(minutes=50))
+                    self.assertEqual(event["start"]["timeZone"], "Asia/Bangkok")
+                    self.assertEqual(event["attendees"], [{"email": "parent@example.com", "displayName": "Parent Example"}])
+
+    def test_invalid_api_requests_never_reach_calendar(self):
+        invalid = [
+            {"appointment_start": future_slot(0, 10, 0).isoformat()},
+            {"appointment_start": future_slot(5, 19, 10).isoformat()},
+            {"appointment_start": future_slot().replace(second=1).isoformat()},
+            {"appointment_start": future_slot().replace(microsecond=1).isoformat()},
+            {"appointment_start": future_slot().replace(tzinfo=None).isoformat()},
+            {"appointment_start": "not-a-date"},
+            {"appointment_start": (future_slot() - timedelta(days=30)).isoformat()},
+            {"appointment_start": (future_slot() + timedelta(days=182)).isoformat()},
+            {"timezone": "UTC"},
+            {"consent_confirmed": False},
+        ] + [{"duration_minutes": duration} for duration in [30, 45, 60, 0, 51]]
+        with TestClient(backend.app) as client, \
+             patch.object(backend, "enforce_rate_limit"), \
+             patch.object(backend, "get_google_calendar_service") as calendar:
+            for overrides in invalid:
+                with self.subTest(overrides=overrides):
+                    payload = valid_payload(appointment_start=future_slot().isoformat())
+                    payload.update(overrides)
+                    response = client.post("/api/consultations", json=payload)
+                    self.assertEqual(response.status_code, 400, response.text)
+            calendar.assert_not_called()
+
+    def test_guardian_consent_and_single_invitation(self):
+        payload = valid_payload(under_20=True, consent_confirmed=False,
+                                legal_guardian_name="Legal Guardian",
+                                legal_guardian_email="guardian@example.com",
+                                guardian_relationship="Mother", guardian_consent_confirmed=True)
+        service = FakeService()
+        with patch.object(backend, "get_google_calendar_service", return_value=service), \
+             patch.object(backend, "check_calendar_conflict", return_value=False):
+            backend.create_consultation(backend.ConsultationRequest(**payload))
+        self.assertEqual(service.event_resource.insert_kwargs["body"]["attendees"],
+                         [{"email": "guardian@example.com", "displayName": "Legal Guardian"}])
+        for key, value in [("legal_guardian_name", " "), ("legal_guardian_email", None),
+                           ("guardian_relationship", " "), ("guardian_consent_confirmed", False)]:
+            with self.subTest(key=key), self.assertRaises(HTTPException):
+                backend.create_consultation(backend.ConsultationRequest(**{**payload, key: value, "consent_confirmed": True}))
+
+    def test_optional_child_name_and_default_duration(self):
+        payload = valid_payload()
+        del payload["child_display_name"]
+        del payload["duration_minutes"]
+        booking = backend.ConsultationRequest(**payload)
+        self.assertIsNone(booking.child_display_name)
+        self.assertEqual(booking.duration_minutes, 50)
 
     def test_meet_url_extraction_variants(self):
         self.assertEqual(
@@ -166,7 +240,7 @@ class ConsultationTests(unittest.TestCase):
 
     def test_join_window(self):
         start = datetime.now(timezone.utc) + timedelta(minutes=9)
-        end = start + timedelta(minutes=45)
+        end = start + timedelta(minutes=50)
         self.assertTrue(backend.calculate_join_allowed(start, end))
         self.assertFalse(backend.calculate_join_allowed(start + timedelta(hours=1), end + timedelta(hours=1)))
 

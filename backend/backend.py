@@ -104,9 +104,15 @@ class ConsultationRequest(BaseModel):
     child_age_range: str | None = Field(default=None, max_length=40)
     consultation_reason: str = Field(min_length=10, max_length=1000)
     appointment_start: datetime
-    duration_minutes: Literal[30, 45, 60]
+    duration_minutes: Literal[50] = 50
     timezone: str = Field(default="Asia/Bangkok", max_length=64)
-    consent_confirmed: bool
+    # Legacy guardian_name/email keys identify the client; retain API compatibility.
+    consent_confirmed: bool = False
+    under_20: bool = False
+    legal_guardian_name: str | None = Field(default=None, max_length=120)
+    legal_guardian_email: EmailStr | None = None
+    guardian_relationship: str | None = Field(default=None, max_length=120)
+    guardian_consent_confirmed: bool = False
 
     @field_validator("guardian_name")
     @classmethod
@@ -143,7 +149,7 @@ async def consultation_validation_error(
     if request.url.path == "/api/consultations":
         return JSONResponse(
             status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "Please check the appointment information and try again."},
+            content={"detail": "กรุณาตรวจสอบข้อมูลนัดหมาย: ชื่อ อีเมล วันเวลาพร้อมเขตเวลา และระยะเวลา 50 นาที"},
         )
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
@@ -297,6 +303,8 @@ def get_google_calendar_service() -> object:
 
 
 def normalize_appointment_start(value: datetime, timezone_name: str) -> tuple[datetime, ZoneInfo]:
+    if timezone_name != "Asia/Bangkok":
+        raise HTTPException(status_code=400, detail="กรุณาใช้เขตเวลา Asia/Bangkok")
     try:
         appointment_timezone = ZoneInfo(timezone_name)
     except ZoneInfoNotFoundError as exc:
@@ -309,6 +317,9 @@ def normalize_appointment_start(value: datetime, timezone_name: str) -> tuple[da
         raise HTTPException(status_code=400, detail="The appointment must be in the future.")
     if start_time.astimezone(timezone.utc) > now + timedelta(days=180):
         raise HTTPException(status_code=400, detail="Appointments may be booked up to 180 days ahead.")
+    allowed = {(19, 10)} if start_time.weekday() < 5 else {(10, 0), (19, 30)}
+    if (start_time.hour, start_time.minute) not in allowed or start_time.second or start_time.microsecond:
+        raise HTTPException(status_code=400, detail="เวลานัดหมายที่อนุญาต: จันทร์–ศุกร์ 19:10–20:00 เสาร์–อาทิตย์ 10:00–10:50 หรือ 19:30–20:20 (Asia/Bangkok)")
     return start_time, appointment_timezone
 
 
@@ -322,7 +333,10 @@ def build_calendar_event(booking: ConsultationRequest, start_time: datetime, end
         "description": sanitize_calendar_description(),
         "start": {"dateTime": start_time.isoformat(), "timeZone": booking.timezone},
         "end": {"dateTime": end_time.isoformat(), "timeZone": booking.timezone},
-        "attendees": [{"email": str(booking.guardian_email), "displayName": booking.guardian_name}],
+        "attendees": [{
+            "email": str(booking.legal_guardian_email if booking.under_20 else booking.guardian_email),
+            "displayName": booking.legal_guardian_name if booking.under_20 else booking.guardian_name,
+        }],
         "conferenceData": {
             "createRequest": {
                 "requestId": uuid.uuid4().hex,
@@ -440,8 +454,14 @@ async def google_auth_callback(request: Request, state: str = "", code: str = ""
 def create_consultation(booking: ConsultationRequest, request: Request = None) -> ConsultationResponse:
     if request is not None:
         enforce_rate_limit(request, "consultation", 10, 60)
-    if not booking.consent_confirmed:
-        raise HTTPException(status_code=400, detail="Parental or guardian consent is required.")
+    if booking.under_20:
+        if not (booking.legal_guardian_name and booking.legal_guardian_name.strip()
+                and booking.legal_guardian_email
+                and booking.guardian_relationship and booking.guardian_relationship.strip()
+                and booking.guardian_consent_confirmed):
+            raise HTTPException(status_code=400, detail="กรุณากรอกชื่อ อีเมล ความสัมพันธ์ และยืนยันความยินยอมของผู้ปกครองตามกฎหมาย")
+    elif not booking.consent_confirmed:
+        raise HTTPException(status_code=400, detail="กรุณายืนยันว่ามีอายุ 20 ปีบริบูรณ์ขึ้นไปและยินยอมเข้ารับการปรึกษาด้วยตนเอง")
     start_time, _ = normalize_appointment_start(booking.appointment_start, booking.timezone)
     end_time = start_time + timedelta(minutes=booking.duration_minutes)
     try:

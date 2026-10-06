@@ -1,10 +1,12 @@
 ﻿import json
 import os
+import re
 import sys
 import tempfile
 import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlsplit
 
 import pytest
 from fastapi import FastAPI
@@ -156,7 +158,16 @@ def test_frontend_public_config_and_no_secrets():
     config = (root / "frontend" / "config.js").read_text(encoding="utf-8")
     assert '<script src="./config.js"></script>' in html
     assert "BACKEND_WS_URL" in html and "${BACKEND_URL}/api/consultations" in html
-    assert "http://localhost:8000" in config
+    match = re.search(r'backendUrl\s*:\s*["\']([^"\']+)["\']', config)
+    assert match, "Public config must define backendUrl"
+    backend_url = urlsplit(match.group(1))
+    assert backend_url.hostname, "Backend URL must have a hostname"
+    assert backend_url.scheme == "https" or (
+        backend_url.scheme == "http"
+        and backend_url.hostname in {"localhost", "127.0.0.1", "::1"}
+    ), "Backend URL must use HTTPS except for local development"
+    assert backend_url.username is None and backend_url.password is None
+    assert not backend_url.query and not backend_url.fragment
     combined = html + config
     for forbidden in ("MISTRAL_API_KEY", "GOOGLE_CLIENT_SECRET", "SESSION_SECRET", "google_token.json"):
         assert forbidden not in combined
