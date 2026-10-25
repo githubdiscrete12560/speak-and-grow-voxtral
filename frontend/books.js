@@ -72,8 +72,8 @@
   let polling = false;
   let qrOrderId = null;
   const ORDER_KEY = 'speak-grow-order-session-v1';
-  const terminal = status => ['paid','cancelled','expired'].includes(status);
-  const statusText = {pending_payment:'รอการชำระเงิน',awaiting_verification:'รอตรวจสอบการชำระเงิน',paid:'ชำระเงินแล้ว',cancelled:'ยกเลิก',expired:'หมดเวลาการชำระเงิน'};
+  const terminal = status => ['paid','failed','cancelled','expired'].includes(status);
+  const statusText = {checkout_created:'รอชำระเงินผ่าน Stripe',processing:'กำลังตรวจสอบการชำระเงิน',failed:'การชำระเงินไม่สำเร็จ',pending_payment:'รอการชำระเงิน',awaiting_verification:'รอตรวจสอบการชำระเงิน',paid:'ชำระเงินแล้ว',cancelled:'ยกเลิก',expired:'หมดเวลาการชำระเงิน'};
   try{
     const saved = sessionStorage.getItem(ORDER_KEY);
     if(saved && /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(saved))orderToken=saved;
@@ -207,7 +207,7 @@
   function showOrderError(error){
     el('bookOrderStatus').textContent=(error.status || error.message?.startsWith('กรุณา')) ? error.message : 'ยังไม่ทราบผลคำขอ กรุณาลองใหม่ ระบบจะใช้คำขอเดิมเพื่อไม่สร้างคำสั่งซื้อซ้ำ';
   }
-  function expiredLocally(){return activeOrder && Date.now()>=Date.parse(activeOrder.expires_at);}
+  function expiredLocally(){return activeOrder && activeOrder.payment_status!=='processing' && Date.now()>=Date.parse(activeOrder.expires_at);}
   function updateDeadline(){
     if(!activeOrder)return;
     const expired=expiredLocally() && !terminal(activeOrder.payment_status);
@@ -216,7 +216,8 @@
       el('bookQrImage').removeAttribute('src');
       qrOrderId=null;
     }
-    el('bookPromptPayButton').disabled=busy || polling || recovering || expired || terminal(activeOrder.payment_status);
+    el('bookStripeButton').disabled=busy || polling || recovering || expired || terminal(activeOrder.payment_status) || activeOrder.payment_status==='processing' || activeOrder.payment_method==='promptpay' && activeOrder.payment_status==='awaiting_verification';
+    el('bookPromptPayButton').disabled=busy || polling || recovering || expired || terminal(activeOrder.payment_status) || ['checkout_created','processing'].includes(activeOrder.payment_status);
     if(expired)el('bookPaymentState').textContent='คำสั่งซื้อนี้หมดเวลาการชำระเงินแล้ว';
   }
   function renderOrder(order){
@@ -258,7 +259,7 @@
     busy=true;renderCart();
     try{
       const token=ensureOrderToken(); // Save before POST so a lost response can be recovered.
-      const payload={buyer_name:buyerName,buyer_email:el('bookBuyerEmail').value.trim(),buyer_phone:el('bookBuyerPhone').value.trim()||null,items:lines().map(book=>({book_id:book.id,quantity:book.quantity})),payment_method:'promptpay',idempotency_key:token};
+      const payload={buyer_name:buyerName,buyer_email:el('bookBuyerEmail').value.trim(),buyer_phone:el('bookBuyerPhone').value.trim()||null,items:lines().map(book=>({book_id:book.id,quantity:book.quantity})),payment_method:'stripe',idempotency_key:token};
       el('bookOrderStatus').textContent='กำลังสร้างคำสั่งซื้อ ยังไม่มีการชำระเงิน…';
       renderOrder(await orderRequest('/api/book-orders','POST',payload));
       el('bookPaymentHeading').focus();
@@ -270,6 +271,17 @@
         catch(recoveryError){showOrderError(recoveryError);}
       }else showOrderError(error);
     }finally{busy=false;renderCart();updateDeadline();}
+  });
+  el('bookStripeButton').addEventListener('click',async()=>{
+    if(!activeOrder || busy || polling || terminal(activeOrder.payment_status) || expiredLocally())return;
+    busy=true;updateDeadline();renderCart();
+    try{
+      const result=await orderRequest(`/api/book-orders/${encodeURIComponent(activeOrder.order_id)}/stripe-checkout`,'POST');
+      const url=new URL(result.checkout_url);
+      if(url.protocol!=='https:' || url.host!=='checkout.stripe.com' || !result.session_id)throw new Error('Invalid checkout URL');
+      window.location.assign(url.href);
+    }catch(error){showOrderError(error);}
+    finally{busy=false;renderCart();updateDeadline();}
   });
   el('bookPromptPayButton').addEventListener('click',async()=>{
     if(!activeOrder || busy || polling || terminal(activeOrder.payment_status) || expiredLocally())return;
@@ -308,9 +320,22 @@
     if(!document.hidden && el('books').classList.contains('active'))refreshOrder();
   });
   renderCatalog();renderCart();
+  // Return query strings are display hints only. Status always comes from the API.
+  const paymentReturn=new URLSearchParams(window.location?.search || '').get('payment');
+  const returnMessage=paymentReturn==='success'?'ได้รับข้อมูลการชำระเงินแล้ว กำลังตรวจสอบสถานะ':paymentReturn==='cancelled'?'ยกเลิกการชำระเงินแล้ว คุณสามารถกลับไปดำเนินการชำระเงินใหม่ได้':'';
+  if(returnMessage){
+    el('bookCheckout').hidden=false;
+    el('bookOrderStatus').textContent=returnMessage;
+    if(typeof window.showTab==='function')window.showTab('books');
+    // Existing navigation keeps showTab local; activate the existing Books tab.
+    document.querySelector?.('[data-tab="books"]')?.click();
+  }
+  fetch((window.APP_CONFIG?.backendUrl?.replace(/\/$/,'') || 'http://localhost:8000')+'/api/book-payment-methods')
+    .then(response=>response.json()).then(methods=>{el('bookPromptPayButton').hidden=methods.direct_promptpay!==true;})
+    .catch(()=>{el('bookPromptPayButton').hidden=true;});
   if(orderToken){
     recovering=true;renderCart();
-    orderRequest('/api/book-orders/session/current').then(renderOrder).catch(error=>{
+    orderRequest('/api/book-orders/session/current').then(order=>{renderOrder(order);if(returnMessage && order.payment_status!=='paid')el('bookOrderStatus').textContent=returnMessage;}).catch(error=>{
       if(error.status!==404){el('bookCheckout').hidden=false;showOrderError(error);}
     }).finally(()=>{recovering=false;renderCart();updateDeadline();});
   }

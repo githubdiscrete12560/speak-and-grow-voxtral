@@ -473,10 +473,11 @@
         <section id="bookPaymentPanel" class="notice" hidden aria-labelledby="bookPaymentHeading">
           <h3 id="bookPaymentHeading" tabindex="-1">ชำระเงิน</h3>
           <p id="bookOrderReference"></p>
-          <p><strong>วิธีชำระเงิน:</strong> พร้อมเพย์ (PromptPay)</p>
+          <p><strong>วิธีชำระเงิน:</strong> ชำระเงินออนไลน์ผ่าน Stripe</p>
           <p><strong>สถานะการชำระเงิน:</strong> <span id="bookPaymentState">รอการชำระเงิน</span></p>
           <p id="bookOrderExpiry" class="small"></p>
-          <button id="bookPromptPayButton" class="btn primary" type="button">ชำระด้วยพร้อมเพย์</button>
+          <button id="bookStripeButton" class="btn primary" type="button">ชำระเงินออนไลน์</button>
+          <button id="bookPromptPayButton" class="btn" type="button" hidden>พร้อมเพย์โดยตรง</button>
           <div id="bookQrArea" hidden>
             <h4>สแกน QR Code เพื่อชำระเงิน</h4>
             <p id="bookMerchantName"></p>

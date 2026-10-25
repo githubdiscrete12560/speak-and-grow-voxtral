@@ -21,22 +21,23 @@ class Element {
   scrollIntoView(){}
   reportValidity(){return true;}
 }
-function setup(saved='{}',storageThrows=false,session=null,sharedServer=null){
+function setup(saved='{}',storageThrows=false,session=null,sharedServer=null,search=''){
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   for(const match of html.matchAll(/<[^>]*\bid="([^"]+)"[^>]*\bhidden[^>]*>/g))elements[match[1]].hidden=true;
   elements.books.classList={contains(){return true;}};
   let stored=saved, sessionValue=session, now=Date.now();
-  const requests=[], intervals=[];
+  const requests=[], intervals=[], redirects=[];
   const server=sharedServer || {orders:new Map(),count:0};
   let mode='ok';
   const document={hidden:false,addEventListener(){},getElementById(id){assert.ok(elements[id],id);return elements[id];},createElement:tag=>new Element(tag)};
   const context=vm.createContext({document, crypto,
     Date:class extends Date {static now(){return now;}},
-    window:{APP_CONFIG:{backendUrl:'https://backend.example/'}},
+    window:{APP_CONFIG:{backendUrl:'https://backend.example/'},location:{search,assign(url){redirects.push(url);}}},
     localStorage:{getItem(){if(storageThrows)throw Error('blocked');return stored;},setItem(key,value){if(storageThrows)throw Error('blocked');stored=value;}},
     sessionStorage:{getItem(){if(storageThrows)throw Error('blocked');return sessionValue;},setItem(key,value){if(storageThrows)throw Error('blocked');sessionValue=value;},removeItem(){sessionValue=null;}},
-    AbortController,setTimeout,clearTimeout,setInterval(fn,ms){intervals.push({fn,ms});return intervals.length;},
-    async fetch(url,options){
+    URL,URLSearchParams,AbortController,setTimeout,clearTimeout,setInterval(fn,ms){intervals.push({fn,ms});return intervals.length;},
+    async fetch(url,options={}){
+      if(url.endsWith('/api/book-payment-methods'))return {json:async()=>({direct_promptpay:true})};
       const body=options.body?JSON.parse(options.body):undefined;
       requests.push({url,body,headers:options.headers,method:options.method});
       if(mode==='offline')throw Error('offline');
@@ -59,6 +60,10 @@ function setup(saved='{}',storageThrows=false,session=null,sharedServer=null){
       if(!order)return {ok:false,status:404,json:async()=>({detail:'Not found'})};
       if(['pending_payment','awaiting_verification'].includes(order.payment_status) && now>=Date.parse(order.expires_at))order.payment_status='expired';
       let result=order;
+      if(url.endsWith('/stripe-checkout')){
+        order.payment_status='checkout_created';order.payment_method='stripe';
+        result={session_id:'cs_test_mock',checkout_url:mode==='badRedirect'?'https://evil.example/':'https://checkout.stripe.com/c/pay/mock'};
+      }
       if(url.endsWith('/payment')){
         if(['paid','cancelled','expired'].includes(order.payment_status))return {ok:false,status:409,json:async()=>({detail:'expired'})};
         order.payment_status='awaiting_verification';
@@ -67,7 +72,7 @@ function setup(saved='{}',storageThrows=false,session=null,sharedServer=null){
       return {ok:true,json:async()=>JSON.parse(JSON.stringify(result))};
     }});
   vm.runInContext(source,context);
-  return {elements,requests,server,document,intervals,stored:()=>stored,session:()=>sessionValue,setMode:value=>{mode=value;},advance:ms=>{now+=ms;}};
+  return {elements,requests,server,document,intervals,redirects,stored:()=>stored,session:()=>sessionValue,setMode:value=>{mode=value;},advance:ms=>{now+=ms;}};
 }
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 function texts(element){return [element.textContent,...element.children.map(texts)].join(' ');}
@@ -164,5 +169,24 @@ for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>p
   blocked.elements.bookBuyerName.value='Reader';blocked.elements.bookBuyerEmail.value='reader@example.com';await submit(blocked);assert.equal(blocked.requests.length,0);
   const max=setup('{"health":99}');assert.equal(max.elements.bookCatalog.querySelectorAll('button')[1].disabled,true);
   assert.equal(buttonByLabel(max.elements.bookCartItems,'เพิ่มจำนวน').disabled,true);
+  const stripe=setup('{"health":1}');
+  stripe.elements.bookBuyerName.value='Reader';stripe.elements.bookBuyerEmail.value='reader@example.com';await submit(stripe);
+  assert.equal(stripe.requests.at(-1).body.payment_method,'stripe');
+  await click(stripe.elements.bookStripeButton);
+  assert.deepEqual(stripe.redirects,['https://checkout.stripe.com/c/pay/mock']);
+  assert.equal(stripe.server.orders.get(stripe.session()).paid_at,null);
+  const returned=setup(stripe.stored(),false,stripe.session(),stripe.server,'?payment=success&session_id=forged');await flush();
+  assert.ok(returned.elements.bookOrderStatus.textContent.includes('กำลังตรวจสอบสถานะ'));
+  assert.notEqual(returned.elements.bookPaymentState.textContent,'ชำระเงินแล้ว');
+  assert.ok(returned.requests.every(request=>request.method==='GET'));
+  const pollReturn=returned.intervals.find(timer=>timer.ms===15000).fn;
+  await pollReturn();await flush();assert.notEqual(returned.elements.bookPaymentState.textContent,'ชำระเงินแล้ว');
+  stripe.server.orders.get(stripe.session()).payment_status='paid';
+  await pollReturn();await flush();assert.equal(returned.elements.bookPaymentState.textContent,'ชำระเงินแล้ว');
+  stripe.server.orders.get(stripe.session()).payment_status='checkout_created';
+  const cancelled=setup(stripe.stored(),false,stripe.session(),stripe.server,'?payment=cancelled');await flush();
+  assert.ok(cancelled.elements.bookOrderStatus.textContent.includes('คุณสามารถกลับไป'));
+  assert.equal(cancelled.elements.bookStripeButton.disabled,false);
+  cancelled.setMode('badRedirect');await click(cancelled.elements.bookStripeButton);assert.equal(cancelled.redirects.length,0);
   console.log('Books frontend checks passed: catalog/nav/cart, frozen orders, retries/recovery, QR unpaid state, authenticated useful polling, expiry, error recovery.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

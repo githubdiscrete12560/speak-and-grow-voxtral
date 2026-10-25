@@ -9,12 +9,15 @@ import os
 import secrets
 import time
 import uuid
+from urllib.parse import urlsplit
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from functools import lru_cache
 from typing import AsyncIterator, Callable, Literal, Protocol
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+import stripe
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect, Response, status
@@ -203,7 +206,7 @@ class BookOrderRequest(BaseModel):
     buyer_email: EmailStr
     buyer_phone: str | None = Field(default=None, max_length=30)
     items: list[BookOrderItem] = Field(min_length=1, max_length=5)
-    payment_method: Literal["promptpay"] = "promptpay"
+    payment_method: Literal["stripe", "promptpay"] = "stripe"
     # A random client-held credential: both retry key and order-access bearer token.
     idempotency_key: UUID4
 
@@ -226,8 +229,8 @@ class BookOrderLine(BaseModel):
     line_total: int
 
 
-PaymentStatus = Literal["pending_payment", "awaiting_verification", "paid", "cancelled", "expired"]
-ACTIVE_BOOK_STATUSES = {"pending_payment", "awaiting_verification"}
+PaymentStatus = Literal["pending_payment", "awaiting_verification", "checkout_created", "processing", "failed", "paid", "cancelled", "expired"]
+ACTIVE_BOOK_STATUSES = {"pending_payment", "awaiting_verification", "checkout_created"}
 
 
 class BookOrderResponse(BaseModel):
@@ -236,7 +239,7 @@ class BookOrderResponse(BaseModel):
     total_quantity: int
     total_amount: int
     currency: Literal["THB"] = "THB"
-    payment_method: Literal["promptpay"] = "promptpay"
+    payment_method: Literal["stripe", "promptpay"] = "stripe"
     payment_status: PaymentStatus
     created_at: datetime
     expires_at: datetime
@@ -456,7 +459,7 @@ def create_book_order(order: BookOrderRequest, request: Request, response: Respo
         "buyer_name": order.buyer_name, "buyer_email": str(order.buyer_email), "buyer_phone": order.buyer_phone,
         "items": items, "total_quantity": sum(item["quantity"] for item in items),
         "total_amount": sum(item["line_total"] for item in items), "currency": "THB",
-        "payment_method": "promptpay", "payment_status": "pending_payment",
+        "payment_method": order.payment_method, "payment_status": "pending_payment",
         "created_at": now.isoformat(), "expires_at": (now + timedelta(minutes=30)).isoformat(),
         "paid_at": None, "payment_reference": None,
         "access_digest": digest_book_token(str(order.idempotency_key)),
@@ -490,6 +493,8 @@ def create_book_payment(order_id: str, request: Request, response: Response) -> 
     enforce_rate_limit(request, "book-payment", 20, 60)
     token = book_access_token(request)
     record = read_book_order(order_id, token)
+    if record.get("stripe_payment_reference"):
+        raise HTTPException(409, "Stripe checkout already selected for this order.")
     if record["payment_status"] not in ACTIVE_BOOK_STATUSES:
         raise HTTPException(409, "คำสั่งซื้อนี้หมดเวลาการชำระเงินแล้ว หรือไม่สามารถรับชำระได้")
     try:
@@ -505,6 +510,9 @@ def create_book_payment(order_id: str, request: Request, response: Response) -> 
         current = authorize_book_record(current, token)
         if current["payment_status"] not in ACTIVE_BOOK_STATUSES:
             return current
+        if current.get("stripe_payment_reference"):
+            raise HTTPException(409, "Stripe checkout already selected for this order.")
+        current["payment_method"] = "promptpay"
         current.setdefault("payment_instruction", instruction)
         current["payment_status"] = "awaiting_verification"
         return current
@@ -515,6 +523,165 @@ def create_book_payment(order_id: str, request: Request, response: Response) -> 
     saved = updated["payment_instruction"]
     return BookPaymentResponse(order=public_book_order(updated), merchant_name=saved["merchant_name"],
                                qr_image=promptpay_qr_image(saved["qr_payload"]))
+
+
+@app.get("/api/book-payment-methods")
+def book_payment_methods(response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    try:
+        build_promptpay_payload(os.getenv("PROMPTPAY_ID", ""), 300)
+        direct = bool(os.getenv("PROMPTPAY_MERCHANT_NAME", "").strip()) and os.getenv("PROMPTPAY_MERCHANT_NAME") != "YOUR_MERCHANT_NAME"
+    except ValueError:
+        direct = False
+    return {"preferred": "stripe", "direct_promptpay": direct}
+
+
+class StripeCheckoutResponse(BaseModel):
+    session_id: str
+    checkout_url: str
+
+
+def stripe_settings() -> dict:
+    key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    success = os.getenv("STRIPE_SUCCESS_URL", "").strip()
+    cancel = os.getenv("STRIPE_CANCEL_URL", "").strip()
+    # This implementation is deliberately test-mode only. A launch requires review.
+    if (not key.startswith("sk_test_") or key == "sk_test_..."
+            or not secret.startswith("whsec_") or secret == "whsec_..."
+            or os.getenv("STRIPE_CURRENCY", "thb").lower() != "thb"):
+        raise HTTPException(503, "Stripe test payments are not configured.")
+    for value in (success, cancel):
+        url = urlsplit(value)
+        if (not url.netloc or url.username or url.password or
+                (url.scheme != "https" and not (not PRODUCTION and url.scheme == "http"
+                 and url.hostname in {"localhost", "127.0.0.1"}))):
+            raise HTTPException(503, "Stripe return URLs are not configured.")
+    return {"key": key, "secret": secret, "success": success, "cancel": cancel,
+            "methods": [m.strip() for m in os.getenv("STRIPE_PAYMENT_METHOD_TYPES", "").split(",") if m.strip()]}
+
+
+def get_stripe_client(settings):
+    return stripe.StripeClient(settings["key"], max_network_retries=2)
+
+
+@app.post("/api/book-orders/{order_id}/stripe-checkout", response_model=StripeCheckoutResponse)
+def create_stripe_checkout(order_id: str, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "book-payment", 20, 60)
+    token = book_access_token(request)
+    read_book_order(order_id, token)
+    settings = stripe_settings()
+
+    def reserve(current):
+        current = authorize_book_record(current, token)
+        if current["payment_status"] not in ACTIVE_BOOK_STATUSES:
+            raise HTTPException(409, "Order cannot start checkout.")
+        if current.get("payment_instruction"):
+            raise HTTPException(409, "Direct PromptPay already selected for this order.")
+        if not current.get("stripe_payment_reference"):
+            # Freeze all provider parameters before the network call. Retried calls
+            # (including concurrent instances) use exactly the same idempotency key.
+            expiry = int(book_now().timestamp()) + 1830
+            current.update(stripe_payment_reference="stripe-" + order_id,
+                           stripe_checkout_expires_at=expiry,
+                           stripe_success_url=settings["success"], stripe_cancel_url=settings["cancel"],
+                           stripe_payment_methods=settings["methods"], payment_method="stripe",
+                           expires_at=datetime.fromtimestamp(expiry, timezone.utc).isoformat())
+        return current
+
+    record = book_storage_call(lambda repo: repo.update(order_id, reserve))
+    if record.get("stripe_checkout_session_id"):
+        return StripeCheckoutResponse(session_id=record["stripe_checkout_session_id"],
+                                      checkout_url=record["stripe_checkout_url"])
+    params = {
+        "mode": "payment", "client_reference_id": order_id,
+        "success_url": record["stripe_success_url"], "cancel_url": record["stripe_cancel_url"],
+        "expires_at": record["stripe_checkout_expires_at"],
+        "metadata": {"order_id": order_id, "payment_reference": record["stripe_payment_reference"]},
+        "line_items": [{"quantity": item["quantity"], "price_data": {
+            "currency": "thb", "unit_amount": item["unit_price"] * 100,
+            "product_data": {"name": item["title"]}}} for item in record["items"]],
+    }
+    if record["stripe_payment_methods"]:
+        params["payment_method_types"] = record["stripe_payment_methods"]
+    try:
+        session = get_stripe_client(settings).v1.checkout.sessions.create(
+            params, options={"idempotency_key": record["stripe_payment_reference"]})
+        if session.get("livemode") is not False or not session.get("id"):
+            raise ValueError("Invalid test session")
+        url = urlsplit(session.get("url", ""))
+        if url.scheme != "https" or url.netloc != "checkout.stripe.com":
+            raise ValueError("Invalid checkout URL")
+    except Exception:
+        raise HTTPException(503, "Stripe checkout is unavailable. Retry this order.") from None
+
+    def attach(current):
+        if current.get("stripe_checkout_session_id") not in (None, session["id"]):
+            raise HTTPException(409, "Checkout conflict.")
+        current.update(stripe_checkout_session_id=session["id"], stripe_checkout_url=session["url"])
+        if current["payment_status"] == "pending_payment":
+            current["payment_status"] = "checkout_created"
+        return current
+
+    book_storage_call(lambda repo: repo.update(order_id, attach))
+    return StripeCheckoutResponse(session_id=session["id"], checkout_url=session["url"])
+
+
+@app.post("/api/stripe/webhook")
+async def stripe_webhook(request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not secret.startswith("whsec_") or secret == "whsec_...":
+        raise HTTPException(503, "Stripe webhook is not configured.")
+    try:
+        event = stripe.Webhook.construct_event(await request.body(),
+                                              request.headers.get("Stripe-Signature", ""), secret)
+    except (ValueError, stripe.SignatureVerificationError):
+        raise HTTPException(400, "Invalid Stripe signature or payload.") from None
+    kind = event.get("type")
+    if kind not in {"checkout.session.completed", "checkout.session.async_payment_succeeded",
+                    "checkout.session.async_payment_failed", "checkout.session.expired"}:
+        return {"received": True}
+    session = event.get("data", {}).get("object", {})
+    metadata = session.get("metadata") or {}
+    order_id = metadata.get("order_id", "")
+    if not re.fullmatch(r"BSJ-[0-9]{8}-[A-F0-9]{24}", order_id):
+        raise HTTPException(400, "Invalid Stripe order reference.")
+
+    def apply(current):
+        # Signed metadata alone is insufficient: compare the stored session and
+        # reference as well as frozen amount/currency before every transition.
+        if not current.get("stripe_checkout_session_id"):
+            raise HTTPException(503, "Checkout persistence pending. Retry webhook.")
+        if (event.get("livemode") is not False or session.get("livemode") is not False
+                or session.get("mode") != "payment"
+                or session.get("id") != current["stripe_checkout_session_id"]
+                or metadata.get("payment_reference") != current.get("stripe_payment_reference")
+                or session.get("client_reference_id") != order_id
+                or session.get("amount_total") != current["total_amount"] * 100
+                or session.get("currency") != current["currency"].lower()):
+            raise HTTPException(400, "Stripe payment does not match order.")
+        if current["payment_status"] == "paid":
+            return current  # no duplicate transition/fulfillment, even for different event IDs
+        status = session.get("payment_status")
+        if kind in {"checkout.session.completed", "checkout.session.async_payment_succeeded"} and status == "paid":
+            # A delayed signed success can reconcile an order locally marked expired.
+            current.update(payment_status="paid", paid_at=book_now().isoformat(),
+                           payment_reference=current["stripe_payment_reference"],
+                           stripe_payment_status=status, stripe_payment_intent_id=session.get("payment_intent"),
+                           stripe_paid_event_id=event["id"])
+        elif kind == "checkout.session.completed" and status == "unpaid":
+            if current["payment_status"] in ACTIVE_BOOK_STATUSES:
+                current.update(payment_status="processing", stripe_payment_status=status)
+        elif kind == "checkout.session.async_payment_failed" and status == "unpaid":
+            current.update(payment_status="failed", stripe_payment_status=status)
+        elif kind == "checkout.session.expired" and current["payment_status"] in ACTIVE_BOOK_STATUSES:
+            current.update(payment_status="expired", stripe_payment_status=status)
+        return current
+
+    book_storage_call(lambda repo: repo.update(order_id, apply))
+    return {"received": True}
 
 
 def google_settings() -> dict[str, str]:
