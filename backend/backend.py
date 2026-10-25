@@ -160,7 +160,40 @@ async def consultation_validation_error(
             content={"detail": "กรุณาตรวจสอบข้อมูลนัดหมาย: ชื่อ อีเมล วันเวลาพร้อมเขตเวลา และระยะเวลา 50 นาที"},
         )
     if request.url.path.startswith("/api/book-orders"):
-        return JSONResponse(status_code=422, content={"detail": "กรุณาตรวจสอบชื่อ อีเมล และรายการหนังสือ จำนวนต้องเป็นจำนวนเต็ม 1–99 เล่มต่อรายการ"})
+        # Do not echo Pydantic input/ctx/msg: they can contain buyer details,
+        # private credentials, arbitrary extra-field names or validator values.
+        rules = {
+            "buyer_name": "Must contain 1 to 120 characters after trimming whitespace.",
+            "buyer_email": "Must be a valid email address.",
+            "buyer_phone": "Must be null or a valid Thai/international phone number (maximum 30 characters).",
+            "items": "Must contain 1 to 5 book entries.",
+            "book_id": "Must be a book ID containing 1 to 40 characters.",
+            "quantity": "Must be an integer between 1 and 99.",
+            "payment_method": "Must be stripe or promptpay.",
+            "idempotency_key": "Must be a UUID version 4.",
+        }
+        errors = []
+        for error in exc.errors():
+            parts = [part for part in error["loc"] if part != "body"]
+            # Unknown names are untrusted input too; report their parent only.
+            safe_parts = []
+            for part in parts:
+                if isinstance(part, int):
+                    safe_parts.append(f"[{part}]")
+                elif part in rules:
+                    safe_parts.append(("." if safe_parts else "") + part)
+                else:
+                    break
+            field = "".join(safe_parts) or "body"
+            code = error["type"]
+            message = ("Unexpected field is not allowed." if code == "extra_forbidden" else
+                       "Required field is missing." if code == "missing" else
+                       rules.get(parts[-1] if parts else "", "Invalid request body."))
+            errors.append({"field": field, "code": code, "message": message})
+        return JSONResponse(status_code=422, content={
+            "detail": "Invalid book order fields: " + ", ".join(dict.fromkeys(e["field"] for e in errors)),
+            "errors": errors,
+        }, headers={"Cache-Control": "no-store"})
     return JSONResponse(status_code=422, content={"detail": exc.errors()})
 
 

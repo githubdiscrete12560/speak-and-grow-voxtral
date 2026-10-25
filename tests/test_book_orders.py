@@ -305,3 +305,75 @@ def test_promptpay_tags_amount_and_independent_crc():
     assert '0213' + '0'*13 in backend.build_promptpay_payload('0'*13, 300)
     with pytest.raises(ValueError):
         backend.build_promptpay_payload('YOUR_PROMPTPAY_ID', 300)
+
+
+# Exact payload reported by the buyer; keep fixed to catch schema regressions.
+OBSERVED_STRIPE_PAYLOAD = {
+    "buyer_name": "test",
+    "buyer_email": "sopak.ch@rmu.ac.th",
+    "buyer_phone": None,
+    "idempotency_key": "728e0f71-fb42-4e8d-9468-1f3b9f73cce5",
+    "items": [{"book_id": "guidance", "quantity": 2}],
+    "payment_method": "stripe",
+}
+
+
+def test_exact_observed_stripe_payload_is_valid_and_persisted(client, repository):
+    validated = backend.BookOrderRequest.model_validate(OBSERVED_STRIPE_PAYLOAD)
+    assert validated.buyer_name == "test"
+    assert validated.payment_method == "stripe"
+    response = client.post('/api/book-orders', json=OBSERVED_STRIPE_PAYLOAD)
+    assert response.status_code == 200, response.text
+    data = response.json()
+    assert data['payment_method'] == 'stripe'
+    assert data['payment_status'] == 'pending_payment'
+    assert data['total_amount'] == 600
+    assert repository.records[data['order_id']]['buyer_email'] == OBSERVED_STRIPE_PAYLOAD['buyer_email']
+    assert client.get('/api/book-orders/session/current', headers=headers(OBSERVED_STRIPE_PAYLOAD)).json() == data
+
+
+def test_promptpay_only_schema_reproduces_specific_stripe_failure():
+    from typing import Literal
+    from pydantic import ValidationError, create_model
+    # Controlled reproduction of the older schema, not a claim about deployed code.
+    legacy = create_model('LegacyPromptPayRequest', __base__=backend.BookOrderRequest,
+                          payment_method=(Literal['promptpay'], 'promptpay'))
+    with pytest.raises(ValidationError) as caught:
+        legacy.model_validate(OBSERVED_STRIPE_PAYLOAD)
+    errors = caught.value.errors(include_input=False, include_url=False)
+    assert len(errors) == 1
+    assert errors[0]['loc'] == ('payment_method',)
+    assert errors[0]['type'] == 'literal_error'
+    assert errors[0]['msg'] == "Input should be 'promptpay'"
+
+
+@pytest.mark.parametrize('changes,field,code', [
+    ({'buyer_name': '   '}, 'buyer_name', 'string_too_short'),
+    ({'buyer_email': 'private-invalid-email'}, 'buyer_email', 'value_error'),
+    ({'buyer_phone': 'private-phone'}, 'buyer_phone', 'value_error'),
+    ({'items': []}, 'items', 'too_short'),
+    ({'items': [{'book_id': '', 'quantity': 2}]}, 'items[0].book_id', 'string_too_short'),
+    ({'items': [{'book_id': 'guidance', 'quantity': '2'}]}, 'items[0].quantity', 'int_type'),
+    ({'items': [{'book_id': 'guidance', 'quantity': 100}]}, 'items[0].quantity', 'less_than_equal'),
+    ({'payment_method': 'private-method'}, 'payment_method', 'literal_error'),
+    ({'idempotency_key': 'private-token'}, 'idempotency_key', 'uuid_parsing'),
+    ({'private-extra-name': 'private-extra-value'}, 'body', 'extra_forbidden'),
+])
+def test_validation_errors_identify_fields_without_echoing_inputs(client, changes, field, code):
+    response = client.post('/api/book-orders', json={**OBSERVED_STRIPE_PAYLOAD, **changes})
+    assert response.status_code == 422
+    result = response.json()
+    assert isinstance(result['detail'], str) and field in result['detail']
+    assert result['errors'][0]['field'] == field
+    assert result['errors'][0]['code'] == code
+    assert set(result['errors'][0]) == {'field', 'code', 'message'}
+    assert 'private-' not in response.text
+    assert OBSERVED_STRIPE_PAYLOAD['buyer_email'] not in response.text
+    assert OBSERVED_STRIPE_PAYLOAD['idempotency_key'] not in response.text
+    assert response.headers['cache-control'] == 'no-store'
+
+
+def test_invalid_book_json_has_safe_field_error(client):
+    response = client.post('/api/book-orders', content='{', headers={'Content-Type': 'application/json'})
+    assert response.status_code == 422
+    assert response.json()['errors'][0]['code'] == 'json_invalid'
