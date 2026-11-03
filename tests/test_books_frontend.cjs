@@ -5,6 +5,10 @@ const crypto = require('node:crypto');
 const html = fs.readFileSync('frontend/index.html','utf8');
 const source = fs.readFileSync('frontend/books.js','utf8');
 new vm.Script(source);
+const prices={guidance:250,health:300,counseling:350,learning:300,skills:99};
+assert.deepEqual(Object.fromEntries(JSON.parse(source.match(/const BOOKS = (\[[\s\S]*?\]);/)[1]).map(book=>[book.id,book.price])),prices);
+assert.ok(source.includes("'book-cover-price',money(book.price)"));
+assert.ok(source.includes("node('strong','',money(book.price))"));
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
 assert.equal(new Set(ids).size,ids.length,'Duplicate IDs');
 assert.ok(html.includes('<script src="./books.js"></script>'));
@@ -51,8 +55,8 @@ function setup(saved='{}',storageThrows=false,session=null,sharedServer=null,sea
           server.count++;
           order={order_id:'BSJ-20261006-'+crypto.randomBytes(12).toString('hex').toUpperCase(),
             payment_status:'pending_payment',payment_method:'promptpay',currency:'THB',created_at:new Date(now).toISOString(),expires_at:new Date(now+1800000).toISOString(),paid_at:null,payment_reference:null,
-            total_amount:body.items.reduce((sum,item)=>sum+item.quantity*300,0),
-            items:body.items.map(item=>({book_id:item.book_id,title:item.book_id,quantity:item.quantity,unit_price:300,line_total:item.quantity*300}))};
+            total_amount:body.items.reduce((sum,item)=>sum+item.quantity*prices[item.book_id],0),
+            items:body.items.map(item=>({book_id:item.book_id,title:item.book_id,quantity:item.quantity,unit_price:prices[item.book_id],line_total:item.quantity*prices[item.book_id]}))};
           server.orders.set(token,order);
         }
         if(mode==='lostResponse')throw Error('connection lost after commit');
@@ -90,22 +94,30 @@ vm.runInContext(inline.slice(inline.indexOf('  const tabs'),inline.indexOf('  co
 assert.deepEqual(tabs.map(tab=>tab.dataset.tab),['home','psychologist','books','donation','consultation']);
 for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>panel.active).length,1);assert.equal(panels.find(panel=>panel.active).id,tab.dataset.tab);}
 (async()=>{
+  const mixed=setup(JSON.stringify({guidance:1,counseling:2,skills:3}));
+  assert.equal(mixed.elements.bookCartTotal.textContent,'1,247 \u0e1a\u0e32\u0e17');
+  click(mixed.elements.bookCheckoutButton);
+  for(const amount of [250,700,297,1247])assert.ok(texts(mixed.elements.bookCheckoutSummary).includes(`${amount.toLocaleString('th-TH')} \u0e1a\u0e32\u0e17`));
+  mixed.elements.bookBuyerName.value='Reader';mixed.elements.bookBuyerEmail.value='reader@example.com';
+  await submit(mixed);
+  assert.equal(mixed.server.orders.get(mixed.session()).total_amount,1247);
+  assert.ok(texts(mixed.elements.bookCheckoutSummary).includes('1,247 \u0e1a\u0e32\u0e17'));
   const state=setup();const e=state.elements;
   assert.equal(e.bookCatalog.children.length,5);
   assert.equal(e.bookCheckoutButton.disabled,true);
-  for(const card of e.bookCatalog.children){
-    assert.ok(texts(card).includes('300 บาท'));
+  for(const [index,card] of e.bookCatalog.children.entries()){
+    assert.equal(texts(card).split(`${Object.values(prices)[index]} บาท`).length-1,2);
     assert.ok(texts(card).includes('รศ.ดร. จันทร์เพ็ญ ภูโสภา'));
     assert.ok(card.children[0].children[0].children.some(child=>child.innerHTML?.includes('<svg')));
   }
   const addButtons=e.bookCatalog.querySelectorAll('button');
   click(addButtons[0]);click(addButtons[0]);click(addButtons[1]);
-  assert.equal(e.bookCartTotal.textContent,'900 บาท');
+  assert.equal(e.bookCartTotal.textContent,'800 บาท');
   assert.equal(e.bookCartCount.textContent,'3 เล่ม');
   assert.deepEqual(JSON.parse(state.stored()),{guidance:2,health:1});
-  assert.equal(setup(state.stored()).elements.bookCartTotal.textContent,'900 บาท');
-  click(buttonByLabel(e.bookCartItems,'ลดจำนวน'));assert.equal(e.bookCartTotal.textContent,'600 บาท');
-  click(buttonByLabel(e.bookCartItems,'เพิ่มจำนวน'));assert.equal(e.bookCartTotal.textContent,'900 บาท');
+  assert.equal(setup(state.stored()).elements.bookCartTotal.textContent,'800 บาท');
+  click(buttonByLabel(e.bookCartItems,'ลดจำนวน'));assert.equal(e.bookCartTotal.textContent,'550 บาท');
+  click(buttonByLabel(e.bookCartItems,'เพิ่มจำนวน'));assert.equal(e.bookCartTotal.textContent,'800 บาท');
   click(buttonByLabel(e.bookCartItems,'ลบ'));assert.equal(e.bookCartTotal.textContent,'300 บาท');
   click(e.bookCheckoutButton);assert.equal(e.bookCheckout.hidden,false);
   e.bookBuyerName.value='Reader';e.bookBuyerEmail.value='reader@example.com';
@@ -122,7 +134,7 @@ for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>p
   assert.equal(e.bookQrArea.hidden,true);
   assert.ok(!state.stored().includes('Reader') && !state.session().includes('Reader'));
   const frozenSummary=texts(e.bookCheckoutSummary);
-  click(addButtons[2]);assert.equal(e.bookCartTotal.textContent,'600 บาท');
+  click(addButtons[2]);assert.equal(e.bookCartTotal.textContent,'650 บาท');
   assert.equal(texts(e.bookCheckoutSummary),frozenSummary,'Created order items must stay frozen');
   const restored=setup(state.stored(),false,state.session(),state.server);await flush();
   assert.equal(restored.elements.bookPaymentState.textContent,'รอการชำระเงิน');
@@ -165,7 +177,7 @@ for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>p
   while(failing.elements.bookCartItems.querySelectorAll('button').length)click(buttonByLabel(failing.elements.bookCartItems,'ลบ'));
   assert.equal(failing.elements.bookCheckoutButton.disabled,true);
   for(const saved of ['broken','null','[]','{"unknown":2,"guidance":-1,"health":"2"}'])assert.equal(setup(saved).elements.bookCartTotal.textContent,'0 บาท');
-  const blocked=setup('{}',true);click(blocked.elements.bookCatalog.querySelectorAll('button')[0]);assert.equal(blocked.elements.bookCartTotal.textContent,'300 บาท');
+  const blocked=setup('{}',true);click(blocked.elements.bookCatalog.querySelectorAll('button')[0]);assert.equal(blocked.elements.bookCartTotal.textContent,'250 บาท');
   blocked.elements.bookBuyerName.value='Reader';blocked.elements.bookBuyerEmail.value='reader@example.com';await submit(blocked);assert.equal(blocked.requests.length,0);
   const max=setup('{"health":99}');assert.equal(max.elements.bookCatalog.querySelectorAll('button')[1].disabled,true);
   assert.equal(buttonByLabel(max.elements.bookCartItems,'เพิ่มจำนวน').disabled,true);

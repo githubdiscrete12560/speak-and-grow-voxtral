@@ -74,10 +74,13 @@ def headers(order):
     return {"Authorization": "Bearer " + order["idempotency_key"]}
 
 
+EXPECTED_PRICES = {'guidance': 250, 'health': 300, 'counseling': 350, 'learning': 300, 'skills': 99}
+
+
 @pytest.mark.parametrize("items,amount", [
     ([{"book_id": "health", "quantity": 1}], 300),
     ([{"book_id": "health", "quantity": 2}], 600),
-    ([{"book_id": "health", "quantity": 2}, {"book_id": "guidance", "quantity": 1}], 900),
+    ([{"book_id": "health", "quantity": 2}, {"book_id": "guidance", "quantity": 1}], 850),
 ])
 def test_order_prices_status_and_no_buyer_data(client, repository, items, amount):
     order = payload(items=items)
@@ -85,13 +88,15 @@ def test_order_prices_status_and_no_buyer_data(client, repository, items, amount
     assert result.status_code == 200
     data = result.json()
     assert data["total_amount"] == amount
-    assert data["total_quantity"] == amount // 300
+    assert data["total_quantity"] == sum(item["quantity"] for item in items)
     assert data["currency"] == "THB"
     assert data["payment_status"] == "pending_payment"
     assert data["paid_at"] is None and data["payment_reference"] is None
     assert re.fullmatch(r"BSJ-[0-9]{8}-[A-F0-9]{24}", data["order_id"])
     assert datetime.fromisoformat(data["expires_at"]) - datetime.fromisoformat(data["created_at"]) == timedelta(minutes=30)
-    assert all(item["unit_price"] == 300 for item in data["items"])
+    for item in data["items"]:
+        assert item["unit_price"] == EXPECTED_PRICES[item["book_id"]]
+        assert item["line_total"] == item["unit_price"] * item["quantity"]
     assert "buyer_email" not in data and "buyer_name" not in data
     assert "access_digest" not in data and "idempotency_key" not in data
     assert result.headers["cache-control"] == "no-store"
@@ -128,7 +133,7 @@ def test_all_books_and_quantity_limit(client):
     response = client.post("/api/book-orders", json=payload(
         items=[{"book_id": book_id, "quantity": 99} for book_id in backend.BOOK_CATALOG]))
     assert response.status_code == 200
-    assert response.json()["total_amount"] == 5 * 99 * 300
+    assert response.json()["total_amount"] == 99 * 1299
     assert response.json()["total_quantity"] == 495
 
 
@@ -154,7 +159,7 @@ def test_catalog_matches_frontend_and_utf8():
     for book in catalog:
         assert {key: book[key] for key in ("title", "author", "price")} == backend.BOOK_CATALOG[book["id"]]
         assert book["author"] == "รศ.ดร. จันทร์เพ็ญ ภูโสภา"
-        assert book["price"] == 300
+        assert book["price"] == EXPECTED_PRICES[book["id"]]
     for filename in ["frontend/index.html", "frontend/books.js", "frontend/books.css", "backend/backend.py"]:
         data = (root / filename).read_bytes()
         assert not data.startswith(b"\xef\xbb\xbf")
@@ -218,10 +223,10 @@ def test_qr_stays_unpaid_is_exact_and_idempotent(client, repository):
     data = result.json()
     assert data["order"]["payment_status"] == "awaiting_verification"
     assert data["order"]["paid_at"] is None
-    assert data["order"]["total_amount"] == 900
+    assert data["order"]["total_amount"] == 800
     assert b'<svg' in base64.b64decode(data["qr_image"].split(',')[1])
     record = repository.records[created["order_id"]]
-    assert '5406900.00' in record['payment_instruction']['qr_payload']
+    assert '5406800.00' in record['payment_instruction']['qr_payload']
     # Existing instructions are frozen even if deployment config later changes.
     with patch.dict(backend.os.environ, {"PROMPTPAY_ID": "", "PROMPTPAY_MERCHANT_NAME": ""}):
         again = client.post(path, headers=headers(order)).json()
@@ -327,7 +332,7 @@ def test_exact_observed_stripe_payload_is_valid_and_persisted(client, repository
     data = response.json()
     assert data['payment_method'] == 'stripe'
     assert data['payment_status'] == 'pending_payment'
-    assert data['total_amount'] == 600
+    assert data['total_amount'] == 500
     assert repository.records[data['order_id']]['buyer_email'] == OBSERVED_STRIPE_PAYLOAD['buyer_email']
     assert client.get('/api/book-orders/session/current', headers=headers(OBSERVED_STRIPE_PAYLOAD)).json() == data
 
@@ -377,3 +382,21 @@ def test_invalid_book_json_has_safe_field_error(client):
     response = client.post('/api/book-orders', content='{', headers={'Content-Type': 'application/json'})
     assert response.status_code == 422
     assert response.json()['errors'][0]['code'] == 'json_invalid'
+
+
+@pytest.mark.parametrize("book_id,price", EXPECTED_PRICES.items())
+def test_each_authoritative_book_price(client, book_id, price):
+    assert backend.BOOK_CATALOG[book_id]['price'] == price
+    data = client.post('/api/book-orders', json=payload(items=[{'book_id': book_id, 'quantity': 2}])).json()
+    assert data['items'][0]['unit_price'] == price
+    assert data['items'][0]['line_total'] == price * 2
+    assert data['total_amount'] == price * 2
+
+
+def test_mixed_cart_exact_prices(client):
+    data = client.post('/api/book-orders', json=payload(items=[
+        {'book_id': 'guidance', 'quantity': 1}, {'book_id': 'counseling', 'quantity': 2},
+        {'book_id': 'skills', 'quantity': 3}])).json()
+    assert {item['book_id']: item['line_total'] for item in data['items']} == {
+        'guidance': 250, 'counseling': 700, 'skills': 297}
+    assert data['total_amount'] == 1247

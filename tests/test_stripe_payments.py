@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 import pytest
 from backend import backend
-from test_book_orders import client, repository, payload, headers, MERCHANT_TEST_ENV
+from test_book_orders import client, repository, payload, headers, MERCHANT_TEST_ENV, EXPECTED_PRICES
 
 
 @pytest.fixture(autouse=True)
@@ -57,14 +57,14 @@ def deliver(client, event, secret="whsec_synthetic_only", timestamp=None):
 
 @pytest.mark.parametrize("items,amount", [
     ([{"book_id": "health", "quantity": 1}], 30000),
-    ([{"book_id": "health", "quantity": 2}, {"book_id": "guidance", "quantity": 1}], 90000)])
+    ([{"book_id": "health", "quantity": 2}, {"book_id": "guidance", "quantity": 1}], 85000)])
 def test_frozen_integer_prices_and_retries(client, repository, sdk, items, amount):
     order, created, path = checkout(client, payload(payment_method="stripe", items=items))
     result = client.post(path, headers=headers(order), json={"total_amount": 1, "payment_status": "paid"})
     assert result.status_code == 200
     assert set(result.json()) == {"session_id", "checkout_url"}
     params = sdk.call_args.args[0]
-    assert all(line["price_data"]["unit_amount"] == 30000 for line in params["line_items"])
+    assert [line["price_data"]["unit_amount"] for line in params["line_items"]] == [EXPECTED_PRICES[item["book_id"]] * 100 for item in items]
     assert sum(line["quantity"] * line["price_data"]["unit_amount"] for line in params["line_items"]) == amount
     assert "payment_method_types" not in params
     assert params["success_url"].endswith("{CHECKOUT_SESSION_ID}")
@@ -296,8 +296,8 @@ def test_promptpay_checkout_contract_and_frozen_prices(client, repository, sdk, 
     assert params['payment_method_types'] == ['card', 'promptpay']
     assert params['mode'] == 'payment'
     assert all(line['price_data']['currency'] == 'thb' for line in params['line_items'])
-    assert all(line['price_data']['unit_amount'] == 30000 for line in params['line_items'])
-    assert sum(line['quantity'] * line['price_data']['unit_amount'] for line in params['line_items']) == record['total_amount'] * 100 == 90000
+    assert [line['price_data']['unit_amount'] for line in params['line_items']] == [25000, 30000]
+    assert sum(line['quantity'] * line['price_data']['unit_amount'] for line in params['line_items']) == record['total_amount'] * 100 == 80000
     assert params['client_reference_id'] == created['order_id']
     assert params['metadata'] == {'order_id': created['order_id'], 'payment_reference': record['stripe_payment_reference']}
     assert params['success_url'] == record['stripe_success_url']
@@ -335,3 +335,19 @@ def test_unsupported_frozen_methods_never_reach_stripe(client, repository, sdk):
     sdk.reset_mock()
     assert client.post(path, headers=headers(order)).status_code == 503
     sdk.assert_not_called()
+
+
+@pytest.mark.parametrize('items,total', [
+    ([{'book_id': key, 'quantity': 1} for key in EXPECTED_PRICES], 129900),
+    ([{'book_id': 'guidance', 'quantity': 1}, {'book_id': 'counseling', 'quantity': 2},
+      {'book_id': 'skills', 'quantity': 3}], 124700)])
+def test_stripe_catalog_and_mixed_cart_minor_units(client, repository, sdk, monkeypatch, items, total):
+    order, created, path = checkout(client, payload(payment_method='stripe', items=items))
+    frozen = copy.deepcopy(repository.records[created['order_id']]['items'])
+    for key in EXPECTED_PRICES:
+        monkeypatch.setitem(backend.BOOK_CATALOG, key, {**backend.BOOK_CATALOG[key], 'price': 1})
+    assert client.post(path, headers=headers(order), json={'total_amount': 1}).status_code == 200
+    lines = sdk.call_args.args[0]['line_items']
+    assert [line['price_data']['unit_amount'] for line in lines] == [EXPECTED_PRICES[item['book_id']] * 100 for item in frozen]
+    assert all(line['price_data']['currency'] == 'thb' for line in lines)
+    assert sum(line['quantity'] * line['price_data']['unit_amount'] for line in lines) == total

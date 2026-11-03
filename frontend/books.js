@@ -10,7 +10,7 @@
     "description": "นำเสนอแนวคิดทางจิตวิทยาและหลักการแนะแนวสำหรับครู เพื่อเป็นพื้นฐานในการทำความเข้าใจผู้เรียนและส่งเสริมพัฒนาการอย่างเหมาะสม",
     "theme": "sage",
     "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
-    "price": 300
+    "price": 250
   },
   {
     "id": "health",
@@ -30,7 +30,7 @@
     "description": "รวบรวมแนวคิดพื้นฐานของทฤษฎีการให้คำปรึกษา เพื่อสนับสนุนการเรียนรู้และการพิจารณาแนวทางช่วยเหลือที่สอดคล้องกับบริบทของผู้รับบริการ",
     "theme": "lavender",
     "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
-    "price": 300
+    "price": 350
   },
   {
     "id": "learning",
@@ -50,7 +50,7 @@
     "description": "นำเสนอกระบวนการ ขั้นตอน เทคนิค และทักษะพื้นฐานในการให้คำปรึกษา เพื่อใช้ประกอบการศึกษาและพัฒนาความเข้าใจในการปฏิบัติงานอย่างเป็นระบบ",
     "theme": "sky",
     "author": "รศ.ดร. จันทร์เพ็ญ ภูโสภา",
-    "price": 300
+    "price": 99
   }
 ];
   const CART_KEY = 'speak-grow-books-v1';
@@ -111,7 +111,7 @@
       top.append(node('span','',book.category),node('span','book-cover-number',String(index+1).padStart(2,'0')));
       const art=node('div','book-cover-art');
       art.innerHTML=`<svg viewBox="0 0 160 84" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${motifs[index]}</svg>`;
-      cover.append(top,node('h3','',book.title),node('p','book-cover-tagline',book.tagline),art,node('p','book-cover-author',book.author),node('span','book-cover-price','300 บาท'));
+      cover.append(top,node('h3','',book.title),node('p','book-cover-tagline',book.tagline),art,node('p','book-cover-author',book.author),node('span','book-cover-price',money(book.price)));
       wrap.append(cover);
       const details=node('div','book-details');
       const buy=node('div','book-buy-row');
@@ -119,7 +119,7 @@
       button.type='button';button.dataset.bookAdd=book.id;
       button.setAttribute('aria-label',`เพิ่มลงตะกร้า ${book.title}`);
       button.addEventListener('click',() => changeQuantity(book.id,(cart[book.id]||0)+1));
-      buy.append(node('strong','','300 บาท'),button);
+      buy.append(node('strong','',money(book.price)),button);
       details.append(node('h3','',book.title),node('p','book-author',book.author),node('p','book-description',book.description),buy);
       article.append(wrap,details);
       return article;

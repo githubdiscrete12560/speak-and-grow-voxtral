@@ -4,7 +4,7 @@
 
 The existing Firestore order and private UUIDv4 bearer credential remain in use.
 `POST /api/book-orders` freezes server catalog titles, integer THB prices and quantities;
-unknown browser price/status fields are rejected. Five books cost 300 THB each.
+unknown browser price/status fields are rejected. Book prices are guidance 250, health 300, counseling 350, learning 300, and skills 99 THB.
 New orders default to `payment_method=stripe`, `payment_status=pending_payment`.
 Explicit `promptpay` remains compatible. No consultation, OAuth, Calendar, Netlify,
 profile or donation behavior is changed.
