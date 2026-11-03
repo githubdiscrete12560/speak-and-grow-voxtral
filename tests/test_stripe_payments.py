@@ -227,7 +227,9 @@ def test_dashboard_method_configuration_is_frozen(client, repository, sdk, monke
 
 def test_availability_only_reports_valid_direct_config(client, monkeypatch):
     monkeypatch.setenv('PROMPTPAY_ID', '')
-    assert client.get('/api/book-payment-methods').json() == {"preferred": "stripe", "direct_promptpay": False}
+    assert client.get('/api/book-payment-methods').json() == {
+        "preferred": "stripe", "stripe": {"enabled": True, "card": None, "promptpay": None},
+        "direct_promptpay": False}
     for name, value in MERCHANT_TEST_ENV.items():
         monkeypatch.setenv(name, value)
     response = client.get('/api/book-payment-methods')
@@ -250,3 +252,86 @@ def test_stripe_webhook_uses_firestore_transaction(client, sdk):
         assert deliver(client, event).status_code == 200
         assert database.data == paid
         assert repo.find_by_token(backend.digest_book_token(order['idempotency_key']))['payment_status'] == 'paid'
+
+
+@pytest.mark.parametrize("raw,expected", [
+    ("card,promptpay", ["card", "promptpay"]),
+    (" card, promptpay,card, ", ["card", "promptpay"]),
+    ("card", ["card"]), ("promptpay", ["promptpay"]), ("", []), (" , ", [])])
+def test_method_allowlist_parsing(monkeypatch, raw, expected):
+    monkeypatch.setenv("STRIPE_PAYMENT_METHOD_TYPES", raw)
+    assert backend.stripe_settings()["methods"] == expected
+
+
+@pytest.mark.parametrize("raw", ["card,unknown", "paypal", "Card,promptpay", "promptpay;card"])
+def test_invalid_method_config_disables_checkout(client, sdk, monkeypatch, raw):
+    order, _, path = checkout(client)
+    monkeypatch.setenv("STRIPE_PAYMENT_METHOD_TYPES", raw)
+    assert client.post(path, headers=headers(order)).status_code == 503
+    assert client.get('/api/book-payment-methods').json()['stripe'] == {
+        "enabled": False, "card": False, "promptpay": False}
+    sdk.assert_not_called()
+
+
+@pytest.mark.parametrize("methods,card,promptpay", [
+    ("card,promptpay", True, True), ("card", True, False), ("promptpay", False, True)])
+def test_explicit_method_availability(client, monkeypatch, methods, card, promptpay):
+    monkeypatch.setenv("STRIPE_PAYMENT_METHOD_TYPES", methods)
+    result = client.get('/api/book-payment-methods')
+    assert result.json()['stripe'] == {"enabled": True, "card": card, "promptpay": promptpay}
+    assert result.headers['cache-control'] == 'no-store'
+    assert set(result.json()) == {'preferred', 'stripe', 'direct_promptpay'}
+    monkeypatch.setenv("STRIPE_SECRET_KEY", "")
+    assert client.get('/api/book-payment-methods').json()['stripe']['enabled'] is False
+
+
+def test_promptpay_checkout_contract_and_frozen_prices(client, repository, sdk, monkeypatch):
+    monkeypatch.setenv("STRIPE_PAYMENT_METHOD_TYPES", "card,promptpay")
+    order, created, path = checkout(client)
+    # Catalog edits after creation must not change this Firestore order's prices.
+    monkeypatch.setitem(backend.BOOK_CATALOG, 'health', {**backend.BOOK_CATALOG['health'], 'price': 1})
+    assert client.post(path, headers=headers(order), json={"total_amount": 1}).status_code == 200
+    params = sdk.call_args.args[0]
+    record = repository.records[created['order_id']]
+    assert params['payment_method_types'] == ['card', 'promptpay']
+    assert params['mode'] == 'payment'
+    assert all(line['price_data']['currency'] == 'thb' for line in params['line_items'])
+    assert all(line['price_data']['unit_amount'] == 30000 for line in params['line_items'])
+    assert sum(line['quantity'] * line['price_data']['unit_amount'] for line in params['line_items']) == record['total_amount'] * 100 == 90000
+    assert params['client_reference_id'] == created['order_id']
+    assert params['metadata'] == {'order_id': created['order_id'], 'payment_reference': record['stripe_payment_reference']}
+    assert params['success_url'] == record['stripe_success_url']
+    assert params['cancel_url'] == record['stripe_cancel_url']
+    assert 1800 <= params['expires_at'] - int(time.time()) <= 1830
+    assert sdk.call_args.kwargs['options']['idempotency_key'] == record['stripe_payment_reference']
+
+
+@pytest.mark.parametrize("kind,status,expected", [
+    ('checkout.session.completed', 'paid', 'paid'),
+    ('checkout.session.completed', 'unpaid', 'processing'),
+    ('checkout.session.async_payment_succeeded', 'paid', 'paid'),
+    ('checkout.session.async_payment_failed', 'unpaid', 'failed'),
+    ('checkout.session.expired', 'unpaid', 'expired')])
+def test_promptpay_signed_event_transitions(client, repository, sdk, monkeypatch, kind, status, expected):
+    monkeypatch.setenv('STRIPE_PAYMENT_METHOD_TYPES', 'card,promptpay')
+    order, created, path = checkout(client)
+    assert client.post(path, headers=headers(order)).status_code == 200
+    record = repository.records[created['order_id']]
+    event = event_for(record, kind, status)
+    assert deliver(client, event).status_code == 200
+    updated = copy.deepcopy(repository.records[created['order_id']])
+    assert updated['payment_status'] == expected
+    assert bool(updated['paid_at']) == (expected == 'paid')
+    assert deliver(client, event).status_code == 200
+    if expected == 'paid':
+        assert repository.records[created['order_id']] == updated
+
+
+def test_unsupported_frozen_methods_never_reach_stripe(client, repository, sdk):
+    order, created, path = checkout(client)
+    sdk.side_effect = RuntimeError('offline')
+    assert client.post(path, headers=headers(order)).status_code == 503
+    repository.records[created['order_id']]['stripe_payment_methods'] = ['paypal']
+    sdk.reset_mock()
+    assert client.post(path, headers=headers(order)).status_code == 503
+    sdk.assert_not_called()

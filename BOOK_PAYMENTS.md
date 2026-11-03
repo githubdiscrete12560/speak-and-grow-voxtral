@@ -88,7 +88,22 @@ Server configuration (placeholders are in `.env.example`):
 - Example cancel: `https://example.netlify.app/?payment=cancelled`.
 - Optional `STRIPE_PAYMENT_METHOD_TYPES`: empty by default, allowing Stripe Dashboard
   dynamic payment methods. An explicit comma-separated list, such as card,promptpay,
-  is available when required. The configuration is frozen per session attempt.
+  is available when required. Only `card` and `promptpay` are accepted; whitespace
+  and duplicates are normalized, and unsupported names disable checkout with 503.
+  The configuration is frozen per session attempt, including retries.
+
+For the reviewed dual-method setup, configure Cloud Run with
+`STRIPE_PAYMENT_METHOD_TYPES=card,promptpay`. This source change does not update
+any environment or deploy anything.
+
+`GET /api/book-payment-methods` keeps `preferred` and `direct_promptpay` and adds
+`stripe: {enabled, card, promptpay}`. These report local configuration, not verified
+Stripe account eligibility. Invalid Stripe configuration returns all three flags
+as false. With empty methods, Stripe Dashboard controls eligibility, so `enabled`
+is true for valid credentials/URLs but `card` and `promptpay` are null (unknown).
+Direct PromptPay is evaluated separately and never implies Stripe PromptPay support.
+No credentials or merchant identifiers are returned. Static frontend copy stays
+conservative, and the single Stripe button lets Checkout present available methods.
 
 Stripe documents PromptPay support for Thailand business accounts, THB, and Checkout
 payment mode (not setup/subscription mode). Enable PromptPay in the test Dashboard

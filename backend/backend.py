@@ -566,12 +566,30 @@ def book_payment_methods(response: Response):
         direct = bool(os.getenv("PROMPTPAY_MERCHANT_NAME", "").strip()) and os.getenv("PROMPTPAY_MERCHANT_NAME") != "YOUR_MERCHANT_NAME"
     except ValueError:
         direct = False
-    return {"preferred": "stripe", "direct_promptpay": direct}
+    try:
+        methods = stripe_settings()["methods"]
+        # Empty configuration delegates to Dashboard; source cannot know eligibility.
+        stripe_availability = {"enabled": True, "card": "card" in methods if methods else None,
+                               "promptpay": "promptpay" in methods if methods else None}
+    except HTTPException:
+        stripe_availability = {"enabled": False, "card": False, "promptpay": False}
+    return {"preferred": "stripe", "stripe": stripe_availability, "direct_promptpay": direct}
 
 
 class StripeCheckoutResponse(BaseModel):
     session_id: str
     checkout_url: str
+
+
+STRIPE_ALLOWED_PAYMENT_METHODS = frozenset({"card", "promptpay"})
+
+
+def parse_stripe_payment_methods(value: str) -> list[str]:
+    # Preserve Dashboard-managed methods when unset, but never pass arbitrary names.
+    methods = list(dict.fromkeys(part.strip() for part in value.split(",") if part.strip()))
+    if any(method not in STRIPE_ALLOWED_PAYMENT_METHODS for method in methods):
+        raise HTTPException(503, "Stripe payment methods are not configured.")
+    return methods
 
 
 def stripe_settings() -> dict:
@@ -591,7 +609,7 @@ def stripe_settings() -> dict:
                  and url.hostname in {"localhost", "127.0.0.1"}))):
             raise HTTPException(503, "Stripe return URLs are not configured.")
     return {"key": key, "secret": secret, "success": success, "cancel": cancel,
-            "methods": [m.strip() for m in os.getenv("STRIPE_PAYMENT_METHOD_TYPES", "").split(",") if m.strip()]}
+            "methods": parse_stripe_payment_methods(os.getenv("STRIPE_PAYMENT_METHOD_TYPES", ""))}
 
 
 def get_stripe_client(settings):
@@ -636,6 +654,9 @@ def create_stripe_checkout(order_id: str, request: Request, response: Response):
             "currency": "thb", "unit_amount": item["unit_price"] * 100,
             "product_data": {"name": item["title"]}}} for item in record["items"]],
     }
+    # Validate frozen values too: older records may predate the configuration allowlist.
+    if any(method not in STRIPE_ALLOWED_PAYMENT_METHODS for method in record["stripe_payment_methods"]):
+        raise HTTPException(503, "Stripe payment methods are not configured.")
     if record["stripe_payment_methods"]:
         params["payment_method_types"] = record["stripe_payment_methods"]
     try:
