@@ -558,9 +558,11 @@
               <label class="full consent-row"><input id="guardianConsent" type="checkbox" required><span>ข้าพเจ้าขอยืนยันว่าเป็นบิดา มารดา หรือผู้ปกครองตามกฎหมายของผู้รับบริการ และยินยอมให้ผู้รับบริการเข้ารับการปรึกษา รวมถึงยินยอมให้ส่งข้อมูลที่จำเป็นเพื่อดำเนินการนัดหมาย</span></label>
             </div>
           </fieldset>
-          <button id="bookConsultation" class="btn primary" type="submit" style="margin-top:1rem">ยืนยันการนัดหมาย</button>
+          <p id="consultationFee" class="status" aria-live="polite"></p>
+          <button id="bookConsultation" class="btn primary" type="submit" style="margin-top:1rem">ยืนยันข้อมูลและดำเนินการชำระเงิน</button>
         </form>
         <div id="consultationStatus" class="status" aria-live="polite">กรุณากรอกแบบฟอร์มเพื่อขอนัดหมายปรึกษา</div>
+        <button id="resumeConsultationPayment" class="btn secondary" type="button" hidden>กลับไปชำระเงิน</button>
       </article>
       <aside class="card consultation-details">
         <span class="badge">ต้องตรวจสอบคุณวุฒิผู้ให้บริการก่อนเปิดใช้งาน</span>
@@ -652,6 +654,9 @@
   }
   function updateConsentMode(){
     const minor = ageRange.value==='under 20 years';
+    document.getElementById('consultationFee').textContent=minor
+      ? 'ต่ำกว่า 20 ปี · 50 นาที · ค่าบริการ 299 บาท'
+      : '20 ปีขึ้นไป · 50 นาที · ค่าบริการ 499 บาท';
     document.getElementById('adultConsentSection').hidden=minor;
     adultConsent.disabled=minor;
     adultConsent.required=!minor;
@@ -701,7 +706,7 @@
     const start = new Date(bookedAppointment.startTime);
     const end = new Date(bookedAppointment.endTime);
     const now = new Date();
-    if(now > end){consultationCountdown.textContent='การปรึกษาสิ้นสุดแล้ว';stopConsultationPolling();return}
+    if(now > end){joinConsultationBtn.disabled=true;consultationCountdown.textContent='การปรึกษาสิ้นสุดแล้ว';stopConsultationPolling();return}
     if(bookedAppointment.joinAllowed){consultationCountdown.textContent='พร้อมเข้าร่วมการปรึกษา';return}
     const minutesRemaining = Math.max(0, Math.ceil((start-now)/60000));
     const days = Math.floor(minutesRemaining / 1440);
@@ -714,24 +719,105 @@
     if(consultationPoll){clearInterval(consultationPoll);consultationPoll=null}
   }
 
-  async function refreshConsultationStatus(){
-    if(!bookedAppointment?.eventId)return;
-    try{
-      const response=await fetch(`${BACKEND_URL}/api/consultations/${encodeURIComponent(bookedAppointment.eventId)}`);
-      if(!response.ok)return;
-      const result=await response.json();
-      bookedAppointment.joinAllowed=result.join_allowed===true;
-      if(result.meet_url)bookedAppointment.meetUrl=result.meet_url;
-      joinConsultationBtn.disabled=!(bookedAppointment.joinAllowed&&bookedAppointment.meetUrl);
-      renderCountdown();
-    }catch(_){
-      consultationStatus.textContent='นัดหมายเรียบร้อยแล้ว แต่ยังไม่สามารถตรวจสอบสถานะล่าสุดได้ชั่วคราว';
-    }
+  const consultationStorageKey = 'bsj_consultation_checkout';
+  let consultationAccess = null;
+  let statusInFlight = false;
+  const resumeConsultationPayment = document.getElementById('resumeConsultationPayment');
+
+  function consultationHeaders(){
+    return {'Content-Type':'application/json',Authorization:'Bearer '+consultationAccess.token};
   }
+
+  async function refreshConsultationStatus(){
+    if(!consultationAccess?.id || statusInFlight)return;
+    statusInFlight=true;
+    const id=consultationAccess.id;
+    try{
+      const response=await fetch(BACKEND_URL+'/api/consultations/'+encodeURIComponent(id)+'/status',
+        {headers:consultationHeaders(),cache:'no-store'});
+      if(!response.ok)throw new Error('status');
+      const result=await response.json();
+      if(consultationAccess?.id!==id)return;
+      const confirmed=result.payment_status==='paid' && result.booking_status==='confirmed';
+      const terminal=['failed','expired'].includes(result.payment_status) || result.booking_status==='booking_failed';
+      const messages={
+        pending_payment:'รอการชำระเงิน',
+        processing:'กำลังตรวจสอบการชำระเงิน',
+        paid:'ชำระเงินแล้ว กำลังสร้างนัดหมาย',
+        failed:'การชำระเงินไม่สำเร็จ',
+        expired:'หมดเวลาการชำระเงิน'
+      };
+      consultationStatus.className='status'+(confirmed?' good':terminal?' bad':'');
+      consultationStatus.textContent=confirmed?'ยืนยันการนัดหมายแล้ว':
+        result.payment_status==='paid' && terminal?'ชำระเงินแล้ว แต่ไม่สามารถยืนยันนัดหมายได้ กรุณาติดต่อบ้านสุขใจ':
+        (messages[result.payment_status]||'กำลังตรวจสอบการชำระเงิน');
+      resumeConsultationPayment.hidden=result.payment_status!=='pending_payment';
+      bookConsultationBtn.disabled=!terminal;
+      document.getElementById('appointmentCard').hidden=!confirmed;
+      if(confirmed){
+        bookedAppointment={meetUrl:result.meet_url,startTime:result.appointment_start,
+          endTime:result.appointment_end,joinAllowed:result.meet_available===true};
+        document.getElementById('appointmentStart').textContent=new Date(result.appointment_start).toLocaleString('th-TH',{timeZone:bookingTimezone});
+        document.getElementById('appointmentEnd').textContent=new Date(result.appointment_end).toLocaleString('th-TH',{timeZone:bookingTimezone});
+        document.getElementById('appointmentState').textContent='ยืนยันการนัดหมายแล้ว';
+        joinConsultationBtn.disabled=!(bookedAppointment.joinAllowed && bookedAppointment.meetUrl);
+        renderCountdown();
+      }else if(terminal && result.payment_status!=='paid'){
+        consultationAccess=null;
+        sessionStorage.removeItem(consultationStorageKey);
+      }
+      if(terminal || confirmed){
+        stopConsultationPolling();
+        if(confirmed && Date.now()<=new Date(result.appointment_end).getTime()){
+          consultationPoll=setInterval(refreshConsultationStatus,30000);
+        }
+      }
+    }catch(_){
+      consultationStatus.textContent='ยังไม่สามารถตรวจสอบสถานะล่าสุดได้ ระบบจะลองอีกครั้ง';
+    }finally{statusInFlight=false}
+  }
+
+  function restoreConsultation(){
+    try{
+      consultationAccess=JSON.parse(sessionStorage.getItem(consultationStorageKey));
+      if(!consultationAccess?.id)return;
+      bookConsultationBtn.disabled=true;
+      const returnUrl=new URL(window.location.href);
+      if(returnUrl.searchParams.has('consultation_payment')){
+        consultationStatus.textContent='กำลังตรวจสอบการชำระเงินและยืนยันนัดหมาย…';
+        returnUrl.searchParams.delete('consultation_payment');
+        window.history.replaceState(null,'',returnUrl);
+        showTab('consultation');
+      }
+      consultationPoll=setInterval(refreshConsultationStatus,3500);
+      void refreshConsultationStatus();
+    }catch(_){consultationAccess=null}
+  }
+
+  async function openConsultationCheckout(){
+    resumeConsultationPayment.disabled=true;
+    try{
+      const checkout=await fetch(BACKEND_URL+'/api/consultations/'+encodeURIComponent(consultationAccess.id)+'/stripe-checkout',{
+        method:'POST',headers:consultationHeaders()
+      });
+      const payment=await checkout.json();
+      if(!checkout.ok){
+        consultationStatus.className='status bad';
+        consultationStatus.textContent=typeof payment.detail==='string'?consultationText(payment.detail):
+          'ไม่สามารถเปิดหน้าชำระเงินได้ กรุณาลองอีกครั้ง';
+        return;
+      }
+      window.location.assign(payment.checkout_url);
+    }catch(_){
+      consultationStatus.className='status bad';
+      consultationStatus.textContent='ไม่สามารถเปิดหน้าชำระเงินได้ กรุณาลองอีกครั้ง';
+    }finally{resumeConsultationPayment.disabled=false}
+  }
+  resumeConsultationPayment.addEventListener('click',openConsultationCheckout);
 
   consultationForm.addEventListener('submit', async event => {
     event.preventDefault();
-    if(!consultationForm.reportValidity())return;
+    if(bookConsultationBtn.disabled || !consultationForm.reportValidity())return;
     const selectedSlot = appointmentTime.value;
     if(!availableSlots(appointmentDate.value).some(([start]) => start===selectedSlot)){
       updateSlots();
@@ -758,33 +844,45 @@
       guardian_consent_confirmed:minor && document.getElementById('guardianConsent').checked
     };
     bookConsultationBtn.disabled=true;
+    stopConsultationPolling();
     consultationStatus.className='status';
-    consultationStatus.textContent='กำลังสร้างนัดหมายของคุณอย่างปลอดภัย…';
+    consultationStatus.textContent='กำลังเตรียมหน้าชำระเงิน…';
     try{
-      const response=await fetch(`${BACKEND_URL}/api/consultations`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+      const fingerprint=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',
+        new TextEncoder().encode(JSON.stringify(payload)))), byte=>byte.toString(16).padStart(2,'0')).join('');
+      if(consultationAccess?.fingerprint!==fingerprint){
+        consultationAccess={token:crypto.randomUUID(),fingerprint,id:null};
+      }
+      sessionStorage.setItem(consultationStorageKey,JSON.stringify(consultationAccess));
+      const response=await fetch(`${BACKEND_URL}/api/consultations`,{
+        method:'POST',headers:consultationHeaders(),body:JSON.stringify(payload)
+      });
       const result=await response.json();
       if(!response.ok){
         consultationStatus.className='status bad';
-        consultationStatus.textContent=response.status===409?'เวลาที่เลือกไม่ว่างแล้ว กรุณาเลือกเวลาอื่น':(typeof result.detail==='string'?consultationText(result.detail):'กรุณาตรวจสอบข้อมูลการนัดหมายแล้วลองอีกครั้ง');
+        consultationStatus.textContent=response.status===409?'เวลาที่เลือกไม่ว่างแล้ว กรุณาเลือกเวลาอื่น':
+          (typeof result.detail==='string'?consultationText(result.detail):'กรุณาตรวจสอบข้อมูลการนัดหมายแล้วลองอีกครั้ง');
         return;
       }
-      bookedAppointment={eventId:result.event_id,meetUrl:result.meet_url,startTime:result.start_time,endTime:result.end_time,joinAllowed:false};
-      document.getElementById('appointmentStart').textContent=new Date(result.start_time).toLocaleString('th-TH',{timeZone:bookingTimezone});
-      document.getElementById('appointmentEnd').textContent=new Date(result.end_time).toLocaleString('th-TH',{timeZone:bookingTimezone});
-      document.getElementById('appointmentState').textContent=consultationText(result.status);
-      document.getElementById('appointmentCard').hidden=false;
-      consultationStatus.className='status good';
-      consultationStatus.textContent=consultationText(result.message);
-      joinConsultationBtn.disabled=true;
-      renderCountdown();
-      await refreshConsultationStatus();
-      stopConsultationPolling();
-      consultationPoll=setInterval(refreshConsultationStatus,60000);
+      consultationAccess.id=result.consultation_id;
+      sessionStorage.setItem(consultationStorageKey,JSON.stringify(consultationAccess));
+      if(result.payment_status!=='pending_payment'){
+        consultationPoll=setInterval(refreshConsultationStatus,3500);
+        await refreshConsultationStatus();
+        return;
+      }
+      resumeConsultationPayment.hidden=false;
+      await openConsultationCheckout();
+      consultationPoll=setInterval(refreshConsultationStatus,3500);
     }catch(_){
       consultationStatus.className='status bad';
-      consultationStatus.textContent='ไม่สามารถใช้บริการนัดหมายได้ในขณะนี้ กรุณาลองใหม่ภายหลัง';
-    }finally{bookConsultationBtn.disabled=false}
+      consultationStatus.textContent='ไม่สามารถดำเนินการชำระเงินได้ กรุณาลองอีกครั้ง';
+    }finally{
+      if(!consultationPoll)bookConsultationBtn.disabled=Boolean(consultationAccess?.id);
+    }
   });
+
+  restoreConsultation();
 
   setInterval(renderCountdown,30000);
   window.addEventListener('beforeunload',stopConsultationPolling);

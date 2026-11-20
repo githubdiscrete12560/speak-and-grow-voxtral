@@ -9,7 +9,7 @@ import os
 import secrets
 import time
 import uuid
-from urllib.parse import urlsplit
+from urllib.parse import parse_qsl, urlencode, urlsplit
 from collections import defaultdict, deque
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -137,17 +137,6 @@ class ConsultationRequest(BaseModel):
         if not 10 <= len(value) <= 1000:
             raise ValueError("Consultation reason must be between 10 and 1000 characters.")
         return value
-
-
-class ConsultationResponse(BaseModel):
-    event_id: str
-    html_link: str
-    meet_url: str
-    start_time: datetime
-    end_time: datetime
-    timezone: str
-    status: str
-    message: str
 
 
 @app.exception_handler(RequestValidationError)
@@ -699,6 +688,11 @@ async def stripe_webhook(request: Request, response: Response):
         return {"received": True}
     session = event.get("data", {}).get("object", {})
     metadata = session.get("metadata") or {}
+    payment_type = metadata.get("payment_type", "book")
+    if payment_type == "consultation":
+        return await asyncio.to_thread(apply_consultation_webhook, event, session, metadata)
+    if payment_type != "book":
+        raise HTTPException(400, "Invalid Stripe payment type.")
     order_id = metadata.get("order_id", "")
     if not re.fullmatch(r"BSJ-[0-9]{8}-[A-F0-9]{24}", order_id):
         raise HTTPException(400, "Invalid Stripe order reference.")
@@ -953,7 +947,10 @@ def check_calendar_conflict(service: object, start_time: datetime, end_time: dat
         "timeMax": end_time.astimezone(timezone.utc).isoformat(),
         "items": [{"id": settings["calendar_id"]}],
     }).execute()
-    return bool(result.get("calendars", {}).get(settings["calendar_id"], {}).get("busy", []))
+    calendar = result.get("calendars", {}).get(settings["calendar_id"])
+    if not calendar or calendar.get("errors") or "busy" not in calendar:
+        raise RuntimeError("Calendar availability is unavailable.")
+    return bool(calendar["busy"])
 
 
 def calculate_join_allowed(start_time: datetime, end_time: datetime, now: datetime | None = None) -> bool:
@@ -1034,90 +1031,397 @@ async def google_auth_callback(request: Request, state: str = "", code: str = ""
     return RedirectResponse(f"{frontend_url}/?google_calendar=connected")
 
 
-@app.post("/api/consultations", response_model=ConsultationResponse, status_code=201)
-def create_consultation(booking: ConsultationRequest, request: Request = None) -> ConsultationResponse:
-    if request is not None:
-        enforce_rate_limit(request, "consultation", 10, 60)
+class FirestoreConsultationRepository:
+    def __init__(self, client):
+        self.client = client
+        self.records = client.collection("consultation_orders")
+        self.holds = client.collection("consultation_slot_holds")
+
+    def read(self, consultation_id):
+        return self.records.document(consultation_id).get().to_dict()
+
+    def owner(self, slot):
+        hold = self.holds.document(slot).get().to_dict()
+        return self.read(hold["consultation_id"]) if hold else None
+
+    def create(self, record):
+        from google.cloud import firestore
+
+        @firestore.transactional
+        def reserve(transaction):
+            ref = self.records.document(record["consultation_id"])
+            existing = ref.get(transaction=transaction).to_dict()
+            if existing:
+                return existing
+            hold_ref = self.holds.document(record["slot"])
+            hold = hold_ref.get(transaction=transaction).to_dict()
+            if hold:
+                owner = self.records.document(hold["consultation_id"]).get(transaction=transaction).to_dict()
+                if owner["payment_status"] not in {"failed", "expired"}:
+                    raise HTTPException(409, "เวลาที่เลือกไม่ว่างแล้ว กรุณาเลือกเวลาอื่น")
+            transaction.create(ref, record)
+            transaction.set(hold_ref, {"consultation_id": record["consultation_id"]})
+            return record
+
+        return reserve(self.client.transaction())
+
+    def update(self, consultation_id, transform):
+        from google.cloud import firestore
+
+        @firestore.transactional
+        def update_once(transaction):
+            ref = self.records.document(consultation_id)
+            record = ref.get(transaction=transaction).to_dict()
+            if record is None:
+                raise HTTPException(404, "ไม่พบรายการนัดหมาย")
+            updated = transform(dict(record))
+            if updated != record:
+                transaction.set(ref, updated)
+            return updated
+
+        return update_once(self.client.transaction())
+
+
+@lru_cache(maxsize=1)
+def get_consultation_repository():
+    return FirestoreConsultationRepository(get_book_repository().client)
+
+
+def consultation_storage(action):
+    try:
+        return action(get_consultation_repository())
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(503, "ระบบจัดเก็บข้อมูลนัดหมายไม่พร้อมใช้งาน") from None
+
+
+def consultation_credential(request):
+    token = book_access_token(request)
+    digest = digest_book_token(token)
+    return "cslt" + digest[:32], digest
+
+
+def authorize_consultation(consultation_id, digest, record):
+    if (not record or record["consultation_id"] != consultation_id
+            or not secrets.compare_digest(record["access_digest"], digest)):
+        raise HTTPException(404, "ไม่พบรายการนัดหมาย")
+    return record
+
+
+def read_consultation(consultation_id, request):
+    expected_id, digest = consultation_credential(request)
+    if expected_id != consultation_id:
+        raise HTTPException(404, "ไม่พบรายการนัดหมาย")
+    return authorize_consultation(
+        consultation_id, digest, consultation_storage(lambda repo: repo.read(consultation_id))
+    )
+
+
+def expire_consultation(record):
+    if (record["payment_status"] != "pending_payment"
+            or book_now().timestamp() < record["expires_at"]):
+        return record
+
+    session_id = record.get("stripe_checkout_session_id")
+    if session_id:
+        # A completed Checkout can still be awaiting its signed webhook. Only
+        # release an attached session after Stripe says Checkout itself expired.
+        try:
+            session = get_stripe_client(stripe_settings()).v1.checkout.sessions.retrieve(session_id)
+        except Exception:
+            raise HTTPException(503, "ยังไม่สามารถตรวจสอบสถานะการชำระเงินได้") from None
+        if (session.get("id") != session_id or session.get("livemode") is not False
+                or session.get("status") != "expired" or session.get("payment_status") != "unpaid"):
+            return record
+
+    def expire(current):
+        if (current["payment_status"] == "pending_payment"
+                and current.get("stripe_checkout_session_id") == session_id
+                and current["expires_at"] == record["expires_at"]):
+            current.update(payment_status="expired", booking_status="booking_failed")
+        return current
+
+    return consultation_storage(lambda repo: repo.update(record["consultation_id"], expire))
+
+
+def public_consultation(record):
+    start = datetime.fromisoformat(record["appointment_start"])
+    end = start + timedelta(minutes=50)
+    confirmed = record["booking_status"] == "confirmed"
+    meet_available = confirmed and bool(record["meet_url"]) and calculate_join_allowed(start, end)
+    return {
+        "consultation_id": record["consultation_id"],
+        "payment_status": record["payment_status"],
+        "booking_status": record["booking_status"],
+        "appointment_start": start,
+        "appointment_end": end,
+        "consultation_fee": record["consultation_fee"],
+        "currency": "THB",
+        "meet_available": meet_available,
+        "meet_url": record["meet_url"] if meet_available else "",
+    }
+
+
+@app.post("/api/consultations", status_code=201)
+def create_consultation(booking: ConsultationRequest, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "consultation", 10, 60)
     if booking.under_20:
         if not (booking.legal_guardian_name and booking.legal_guardian_name.strip()
                 and booking.legal_guardian_email
                 and booking.guardian_relationship and booking.guardian_relationship.strip()
                 and booking.guardian_consent_confirmed):
-            raise HTTPException(status_code=400, detail="กรุณากรอกชื่อ อีเมล ความสัมพันธ์ และยืนยันความยินยอมของผู้ปกครองตามกฎหมาย")
+            raise HTTPException(400, "กรุณากรอกชื่อ อีเมล ความสัมพันธ์ และยืนยันความยินยอมของผู้ปกครองตามกฎหมาย")
     elif not booking.consent_confirmed:
-        raise HTTPException(status_code=400, detail="กรุณายืนยันว่ามีอายุ 20 ปีบริบูรณ์ขึ้นไปและยินยอมเข้ารับการปรึกษาด้วยตนเอง")
-    start_time, _ = normalize_appointment_start(booking.appointment_start, booking.timezone)
-    end_time = start_time + timedelta(minutes=booking.duration_minutes)
+        raise HTTPException(400, "กรุณายืนยันว่ามีอายุ 20 ปีบริบูรณ์ขึ้นไปและยินยอมเข้ารับการปรึกษาด้วยตนเอง")
+
+    consultation_id, digest = consultation_credential(request)
+    booking_data = booking.model_dump(mode="json")
+    request_digest = hashlib.sha256(json.dumps(booking_data, sort_keys=True).encode()).hexdigest()
+
+    def replay(existing):
+        authorize_consultation(consultation_id, digest, existing)
+        if existing["request_digest"] != request_digest:
+            raise HTTPException(409, "ข้อมูลไม่ตรงกับคำขอนัดหมายเดิม")
+        return public_consultation(expire_consultation(existing))
+
+    start, _ = normalize_appointment_start(booking.appointment_start, booking.timezone)
+    existing = consultation_storage(lambda repo: repo.read(consultation_id))
+    if existing:
+        return replay(existing)
+    end = start + timedelta(minutes=50)
     try:
-        service = get_google_calendar_service()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="Google Calendar is not authorized.") from exc
-    try:
-        if check_calendar_conflict(service, start_time, end_time):
-            raise HTTPException(
-                status_code=409,
-                detail="The selected time is no longer available. Please choose another time.",
+        busy = check_calendar_conflict(get_google_calendar_service(), start, end)
+    except Exception:
+        raise HTTPException(503, "ยังไม่สามารถตรวจสอบเวลาว่างได้") from None
+    if busy:
+        raise HTTPException(409, "เวลาที่เลือกไม่ว่างแล้ว กรุณาเลือกเวลาอื่น")
+
+    slot = start.astimezone(timezone.utc).strftime("%Y%m%dT%H%MZ")
+    owner = consultation_storage(lambda repo: repo.owner(slot))
+    if owner:
+        expire_consultation(owner)
+    now = book_now()
+    record = {
+        "consultation_id": consultation_id,
+        "access_digest": digest,
+        "request_digest": request_digest,
+        "slot": slot,
+        "appointment_start": start.isoformat(),
+        "duration_minutes": 50,
+        "timezone": booking.timezone,
+        "under_20": booking.under_20,
+        # Keep only the invitation recipient and consent evidence needed later.
+        "invite_name": booking.legal_guardian_name if booking.under_20 else booking.guardian_name,
+        "invite_email": str(booking.legal_guardian_email if booking.under_20 else booking.guardian_email),
+        "guardian_relationship": booking.guardian_relationship if booking.under_20 else None,
+        "consent_confirmed": booking.guardian_consent_confirmed if booking.under_20 else booking.consent_confirmed,
+        "consultation_fee": 299 if booking.under_20 else 499,
+        "currency": "THB",
+        "payment_status": "pending_payment",
+        "booking_status": "pending_payment",
+        "created_at": now.isoformat(),
+        "expires_at": min(int(now.timestamp()) + 600, int(start.timestamp())),
+        "stripe_checkout_session_id": None,
+        "calendar_event_id": None,
+        "meet_url": None,
+    }
+    return replay(consultation_storage(lambda repo: repo.create(record)))
+
+
+@app.get("/api/consultations/{consultation_id}/status")
+def consultation_status(consultation_id: str, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    return public_consultation(expire_consultation(read_consultation(consultation_id, request)))
+
+
+def consultation_return_url(value, result):
+    url = urlsplit(value)
+    query = [(key, item) for key, item in parse_qsl(url.query) if key not in {"payment", "session_id", "consultation_payment"}]
+    query.append(("consultation_payment", result))
+    return url._replace(query=urlencode(query), fragment="consultation").geturl()
+
+
+@app.post("/api/consultations/{consultation_id}/stripe-checkout", response_model=StripeCheckoutResponse)
+def create_consultation_checkout(consultation_id: str, request: Request, response: Response):
+    response.headers["Cache-Control"] = "no-store"
+    enforce_rate_limit(request, "consultation-checkout", 20, 60)
+    expire_consultation(read_consultation(consultation_id, request))
+    settings = stripe_settings()
+
+    def reserve(current):
+        now = int(book_now().timestamp())
+        if current["payment_status"] != "pending_payment" or current["expires_at"] <= now:
+            raise HTTPException(409, "รายการนี้ไม่สามารถเริ่มชำระเงินได้")
+        if not current.get("stripe_payment_reference"):
+            expiry = min(now + 2400, int(datetime.fromisoformat(current["appointment_start"]).timestamp()))
+            if expiry < now + 1830:
+                raise HTTPException(409, "มีเวลาไม่เพียงพอสำหรับชำระเงิน กรุณาเลือกเวลานัดหมายอื่น")
+            current.update(
+                stripe_payment_reference="stripe-" + consultation_id,
+                expires_at=expiry,
+                stripe_payment_methods=settings["methods"],
+                stripe_success_url=consultation_return_url(settings["success"], "return"),
+                stripe_cancel_url=consultation_return_url(settings["cancel"], "cancel"),
             )
-        created_event = service.events().insert(
-            calendarId=google_settings()["calendar_id"],
-            body=build_calendar_event(booking, start_time, end_time),
-            conferenceDataVersion=1,
-            sendUpdates="all",
-        ).execute()
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Google Calendar appointment creation failed")
-        raise HTTPException(
-            status_code=502,
-            detail="The appointment could not be created. Please try again later.",
-        ) from exc
-    meet_url = extract_meet_url(created_event)
-    response_status = "confirmed" if meet_url else "conference_pending"
-    return ConsultationResponse(
-        event_id=str(created_event.get("id", "")),
-        html_link=str(created_event.get("htmlLink", "")),
-        meet_url=meet_url,
-        start_time=start_time,
-        end_time=end_time,
-        timezone=booking.timezone,
-        status=response_status,
-        message=(
-            "Appointment created. Google Calendar has sent the invitation."
-            if meet_url
-            else "Appointment created. The video meeting link is still being prepared."
-        ),
-    )
+        return current
+
+    record = consultation_storage(lambda repo: repo.update(consultation_id, reserve))
+    if record["stripe_checkout_session_id"]:
+        return StripeCheckoutResponse(session_id=record["stripe_checkout_session_id"],
+                                      checkout_url=record["stripe_checkout_url"])
+    reference = record["stripe_payment_reference"]
+    params = {
+        "mode": "payment",
+        "client_reference_id": consultation_id,
+        "success_url": record["stripe_success_url"],
+        "cancel_url": record["stripe_cancel_url"],
+        "expires_at": record["expires_at"],
+        "metadata": {"payment_type": "consultation", "consultation_id": consultation_id,
+                     "payment_reference": reference},
+        "line_items": [{"quantity": 1, "price_data": {
+            "currency": "thb", "unit_amount": record["consultation_fee"] * 100,
+            "product_data": {"name": "Online consultation"},
+        }}],
+    }
+    if record["stripe_payment_methods"]:
+        params["payment_method_types"] = record["stripe_payment_methods"]
+    try:
+        session = get_stripe_client(settings).v1.checkout.sessions.create(
+            params, options={"idempotency_key": reference})
+        url = urlsplit(session.get("url") or "")
+        if (session.get("livemode") is not False or not session.get("id")
+                or url.scheme != "https" or url.netloc != "checkout.stripe.com"):
+            raise ValueError("Invalid Checkout session")
+    except Exception:
+        raise HTTPException(503, "ไม่สามารถเปิดหน้าชำระเงินได้ กรุณาลองอีกครั้ง") from None
+
+    def attach(current):
+        if (current["payment_status"] != "pending_payment"
+                or book_now().timestamp() >= current["expires_at"]
+                or current["stripe_checkout_session_id"] not in (None, session["id"])):
+            raise HTTPException(409, "รายการนี้ไม่สามารถเริ่มชำระเงินได้")
+        current.update(stripe_checkout_session_id=session["id"], stripe_checkout_url=session["url"])
+        return current
+
+    consultation_storage(lambda repo: repo.update(consultation_id, attach))
+    return StripeCheckoutResponse(session_id=session["id"], checkout_url=session["url"])
 
 
-@app.get("/api/consultations/{event_id}")
-def consultation_status(event_id: str) -> dict:
-    if not event_id or len(event_id) > 256 or not all(ch.isalnum() or ch in "_-" for ch in event_id):
-        raise HTTPException(status_code=400, detail="Invalid appointment identifier.")
+def apply_consultation_webhook(event, session, metadata):
+    consultation_id = metadata.get("consultation_id", "")
+    if not isinstance(consultation_id, str) or not re.fullmatch(r"cslt[a-f0-9]{32}", consultation_id):
+        raise HTTPException(400, "Invalid Stripe consultation reference.")
+    kind = event["type"]
+
+    def verify(current):
+        if not current["stripe_checkout_session_id"]:
+            raise HTTPException(503, "Checkout persistence pending. Retry webhook.")
+        if (event.get("livemode") is not False or session.get("livemode") is not False
+                or session.get("mode") != "payment"
+                or session.get("id") != current["stripe_checkout_session_id"]
+                or session.get("client_reference_id") != consultation_id
+                or metadata.get("payment_reference") != current["stripe_payment_reference"]
+                or session.get("amount_total") != current["consultation_fee"] * 100
+                or session.get("currency") != "thb"):
+            raise HTTPException(400, "Stripe payment does not match consultation.")
+        payment = session.get("payment_status")
+        if kind in {"checkout.session.completed", "checkout.session.async_payment_succeeded"} and payment == "paid":
+            if current["payment_status"] != "paid":
+                # A late success after release is recorded for reconciliation.
+                # The slot may already belong to a different customer.
+                released = current["payment_status"] in {"failed", "expired"}
+                payment_intent = session.get("payment_intent")
+                current.update(payment_status="paid",
+                               booking_status="booking_failed" if released else "calendar_pending",
+                               paid_at=book_now().isoformat(),
+                               stripe_payment_intent_id=payment_intent if isinstance(payment_intent, str) else None)
+        elif payment != "unpaid" or kind == "checkout.session.async_payment_succeeded":
+            raise HTTPException(400, "Invalid Stripe consultation payment status.")
+        elif current["payment_status"] in {"pending_payment", "processing"}:
+            if kind == "checkout.session.async_payment_failed":
+                current.update(payment_status="failed", booking_status="booking_failed")
+            elif kind == "checkout.session.expired" and current["payment_status"] == "pending_payment":
+                current.update(payment_status="expired", booking_status="booking_failed")
+            elif kind == "checkout.session.completed":
+                current["payment_status"] = "processing"
+        return current
+
+    record = consultation_storage(lambda repo: repo.update(consultation_id, verify))
+    if record["booking_status"] == "calendar_pending":
+        fulfill_consultation(record)
+    return {"received": True}
+
+
+def fulfill_consultation(record):
+    from googleapiclient.errors import HttpError
+
+    consultation_id = record["consultation_id"]
+    # A stable Google event ID lets retries recover an insert whose response
+    # was lost. The lease serializes concurrent inserts across instances.
+    event_id = hashlib.sha256(consultation_id.encode()).hexdigest()
+    lease = secrets.token_hex(16)
+
+    def claim(current):
+        now = book_now().timestamp()
+        if current["booking_status"] == "calendar_pending" and current.get("calendar_lease_until", 0) <= now:
+            current.update(calendar_lease=lease, calendar_lease_until=now + 120)
+        return current
+
+    def finish(current, **values):
+        if current.get("calendar_lease") == lease:
+            current.update(values, calendar_lease=None, calendar_lease_until=0)
+        return current
+
+    record = consultation_storage(lambda repo: repo.update(consultation_id, claim))
+    if record["booking_status"] != "calendar_pending":
+        return
+    if record.get("calendar_lease") != lease:
+        raise HTTPException(503, "Calendar creation in progress. Retry webhook.")
+    start = datetime.fromisoformat(record["appointment_start"])
+    end = start + timedelta(minutes=50)
     try:
         service = get_google_calendar_service()
-        event = service.events().get(  # type: ignore[attr-defined]
-            calendarId=google_settings()["calendar_id"], eventId=event_id
-        ).execute()
-        start_time = datetime.fromisoformat(event["start"]["dateTime"].replace("Z", "+00:00"))
-        end_time = datetime.fromisoformat(event["end"]["dateTime"].replace("Z", "+00:00"))
-        join_allowed = calculate_join_allowed(start_time, end_time)
-        meet_url = extract_meet_url(event) if join_allowed else ""
-        return {
-            "event_id": event_id,
-            "start_time": start_time,
-            "end_time": end_time,
-            "status": event.get("status", "confirmed"),
-            "meet_url": meet_url,
-            "join_allowed": join_allowed,
-        }
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail="Google Calendar is not authorized.") from exc
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.exception("Google Calendar appointment status lookup failed")
-        raise HTTPException(status_code=502, detail="Appointment status is temporarily unavailable.") from exc
+        events = service.events()
+        calendar_id = google_settings()["calendar_id"]
+        try:
+            event = events.get(calendarId=calendar_id, eventId=event_id).execute()
+        except HttpError as exc:
+            if exc.resp.status != 404:
+                raise
+            if start <= book_now() or check_calendar_conflict(service, start, end):
+                consultation_storage(lambda repo: repo.update(
+                    consultation_id, lambda current: finish(current, booking_status="booking_failed")))
+                return
+            booking = ConsultationRequest.model_construct(
+                timezone=record["timezone"], under_20=record["under_20"],
+                guardian_name=record["invite_name"], guardian_email=record["invite_email"],
+                legal_guardian_name=record["invite_name"], legal_guardian_email=record["invite_email"])
+            body = build_calendar_event(booking, start, end)
+            body["id"] = event_id
+            try:
+                event = events.insert(calendarId=calendar_id, body=body,
+                                      conferenceDataVersion=1, sendUpdates="all").execute()
+            except HttpError as insert_error:
+                if insert_error.resp.status != 409:
+                    raise
+                event = events.get(calendarId=calendar_id, eventId=event_id).execute()
+        meet_url = extract_meet_url(event)
+        conference_status = event.get("conferenceData", {}).get("createRequest", {}).get("status", {}).get("statusCode")
+        booking_status = "calendar_pending"
+        if event.get("status") == "cancelled" or (not meet_url and conference_status == "failure"):
+            booking_status = "booking_failed"
+        elif meet_url:
+            booking_status = "confirmed"
+        consultation_storage(lambda repo: repo.update(
+            consultation_id, lambda current: finish(
+                current, calendar_event_id=event_id, meet_url=meet_url, booking_status=booking_status)))
+    except Exception:
+        consultation_storage(lambda repo: repo.update(consultation_id, finish))
+        raise HTTPException(503, "Calendar temporarily unavailable. Retry webhook.") from None
+    if booking_status == "calendar_pending":
+        raise HTTPException(503, "Google Meet is being prepared. Retry webhook.")
 
 
 @app.delete("/api/consultations/{event_id}", status_code=403)
