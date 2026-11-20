@@ -2,6 +2,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
 const html = fs.readFileSync('frontend/index.html', 'utf8');
+const profileName = html.match(/<section id="psychologist"[^>]*>[\s\S]*?<h3 class="profile-name">([^<]+)<\/h3>/)[1];
+assert.equal(profileName, 'รศ.ดร. จันทร์เพ็ญ ภูโสภา');
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
 assert.equal(ids.length, new Set(ids).size, 'Duplicate HTML IDs');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]);
@@ -24,7 +26,10 @@ const statusResult={payment_status:'pending_payment',booking_status:'pending_pay
   appointment_end:new Date(Date.now()+89400000).toISOString(),meet_available:false};
 const success=data=>({ok:true,json:async()=>({...data})});
 const context = vm.createContext({
-  document:{getElementById(id){assert.ok(elements[id], `Missing ID ${id}`);return elements[id];}},
+  document:{querySelector(selector){
+    assert.equal(selector,'#psychologist .profile-name');
+    return {textContent:profileName};
+  },getElementById(id){assert.ok(elements[id], `Missing ID ${id}`);return elements[id];}},
   window:{addEventListener(){},location:{href:'https://example.com/?consultation_payment=return#consultation',
     assign(url){redirect=url;}},history:{replaceState(){}}}, URL, showTab(id){tab=id;}, Date, Intl, Object, Math, Number, Uint8Array, TextEncoder,
   crypto:require('node:crypto').webcrypto,
@@ -121,6 +126,10 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   assert.equal(tab,'consultation');
   assert.equal(elements.appointmentCard.hidden,true);
   assert.equal(elements.resumeConsultationPayment.hidden,false);
+  statusResult.booking_status='confirmed';
+  await evaluate('refreshConsultationStatus()');
+  assert.equal(elements.appointmentCard.hidden,true);
+  assert.notEqual(elements.consultationStatus.textContent,'ยืนยันการนัดหมายแล้ว');
   statusResult.payment_status='paid';
   statusResult.booking_status='calendar_pending';
   await evaluate('refreshConsultationStatus()');
@@ -129,6 +138,9 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   statusResult.booking_status='confirmed';
   await evaluate('refreshConsultationStatus()');
   assert.equal(elements.appointmentCard.hidden,false);
+  assert.equal(elements.consultationProvider.textContent,profileName);
+  assert.equal(elements.appointmentTherapist.textContent,profileName);
+  assert.equal(elements.consultationStatus.textContent,'ยืนยันการนัดหมายแล้ว');
   assert.equal(elements.joinConsultation.disabled,true);
   console.log('Frontend checks passed: script initialization, IDs, Bangkok slots, date limits, consent switching, payloads.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

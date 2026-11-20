@@ -566,7 +566,7 @@
       </article>
       <aside class="card consultation-details">
         <span class="badge">ต้องตรวจสอบคุณวุฒิผู้ให้บริการก่อนเปิดใช้งาน</span>
-        <h3 style="margin-top:.8rem">พื้นที่สำหรับระบุชื่อผู้ให้คำปรึกษา</h3>
+        <h3 id="consultationProvider" style="margin-top:.8rem"></h3>
         <dl class="detail-list">
           <dt>คุณวุฒิ</dt><dd>พื้นที่สำหรับระบุคุณวุฒิด้านการแก้ไขการพูดที่ผ่านการตรวจสอบแล้ว</dd>
           <dt>การปรึกษาผ่านวิดีโอ</dt><dd>การปรึกษาจะเปิดผ่าน Google Meet อย่างปลอดภัยในแท็บใหม่</dd>
@@ -579,7 +579,7 @@
           <div class="appointment-grid">
             <div><strong>เวลาเริ่ม</strong><span id="appointmentStart">—</span></div>
             <div><strong>เวลาสิ้นสุด</strong><span id="appointmentEnd">—</span></div>
-            <div><strong>ผู้ให้คำปรึกษา</strong><span id="appointmentTherapist">พื้นที่สำหรับระบุชื่อผู้ให้คำปรึกษา</span></div>
+            <div><strong>ผู้ให้คำปรึกษา</strong><span id="appointmentTherapist"></span></div>
             <div><strong>สถานะการนัดหมาย</strong><span id="appointmentState">—</span></div>
           </div>
           <p class="small">Google จะส่งคำเชิญผ่าน Google Calendar หลังสร้างนัดหมาย คุณอาจต้องกดตอบรับคำเชิญ การแจ้งเตือนขึ้นอยู่กับการตั้งค่า Google Calendar และผู้รับ จึงไม่สามารถรับประกันการแจ้งเตือนได้ ระบบต้นแบบนี้ไม่ต้องกดยืนยันการนัดหมายเพิ่มเติม</p>
@@ -613,6 +613,8 @@
   document.querySelectorAll('.jump').forEach(b => b.addEventListener('click', () => showTab(b.dataset.target)));
 
   const consultationForm = document.getElementById('consultationForm');
+  const consultationProviderName = document.querySelector('#psychologist .profile-name').textContent.trim();
+  document.getElementById('consultationProvider').textContent = consultationProviderName;
   const bookConsultationBtn = document.getElementById('bookConsultation');
   const joinConsultationBtn = document.getElementById('joinConsultation');
   const consultationCountdown = document.getElementById('consultationCountdown');
@@ -755,6 +757,7 @@
       bookConsultationBtn.disabled=!terminal;
       document.getElementById('appointmentCard').hidden=!confirmed;
       if(confirmed){
+        document.getElementById('appointmentTherapist').textContent = consultationProviderName;
         bookedAppointment={meetUrl:result.meet_url,startTime:result.appointment_start,
           endTime:result.appointment_end,joinAllowed:result.meet_available===true};
         document.getElementById('appointmentStart').textContent=new Date(result.appointment_start).toLocaleString('th-TH',{timeZone:bookingTimezone});

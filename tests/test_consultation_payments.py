@@ -142,6 +142,15 @@ def test_payment_and_duplicate_webhook_create_one_appointment(flow, monkeypatch,
     events.insert.assert_called_once()
     insert = events.insert.call_args.kwargs
     assert insert["sendUpdates"] == "all" and insert["conferenceDataVersion"] == 1
+    assert "sendNotifications" not in insert
+    body = insert["body"]
+    start_time = datetime.fromisoformat(record["appointment_start"])
+    end_time = start_time + timedelta(minutes=50)
+    assert body["start"] == {"dateTime": start_time.isoformat(), "timeZone": "Asia/Bangkok"}
+    assert body["end"] == {"dateTime": end_time.isoformat(), "timeZone": "Asia/Bangkok"}
+    assert body["conferenceData"]["createRequest"]["conferenceSolutionKey"] == {"type": "hangoutsMeet"}
+    assert events.get.call_args.kwargs["eventId"] == body["id"]
+    assert len(body["id"]) == 64
     expected = "guardian@example.com" if minor else "parent@example.com"
     assert [attendee["email"] for attendee in insert["body"]["attendees"]] == [expected]
     status = client.get(path + "/status", headers=headers).json()
