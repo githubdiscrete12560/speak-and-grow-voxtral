@@ -546,7 +546,7 @@
     </div>
     <div class="consultation-layout">
       <article class="card">
-        <form id="consultationForm" class="consult-form">
+        <form id="consultationForm" class="consult-form" autocomplete="off">
           <div class="consult-form-grid">
             <label for="guardianName">ชื่อ<input id="guardianName" name="guardian_name" maxlength="120" required autocomplete="name"></label>
             <label for="guardianEmail">อีเมล<input id="guardianEmail" name="guardian_email" type="email" required autocomplete="email"></label>
@@ -630,7 +630,6 @@
   const consultationStatus = document.getElementById('consultationStatus');
   const consultationTimezone = document.getElementById('consultationTimezone');
   const bookingTimezone = 'Asia/Bangkok';
-  consultationTimezone.value = bookingTimezone;
   const appointmentDate = document.getElementById('appointmentDate');
   const appointmentTime = document.getElementById('appointmentTime');
   const ageRange = document.getElementById('childAgeRange');
@@ -678,8 +677,13 @@
   }
   appointmentDate.addEventListener('change',updateSlots);
   ageRange.addEventListener('change',updateConsentMode);
-  updateSlots();
-  updateConsentMode();
+  function resetConsultationForm(){
+    consultationForm.reset();
+    consultationTimezone.value = bookingTimezone;
+    updateSlots();
+    updateConsentMode();
+  }
+  resetConsultationForm();
   let bookedAppointment = null;
   let consultationPoll = null;
 
@@ -735,20 +739,33 @@
   let statusInFlight = false;
   const resumeConsultationPayment = document.getElementById('resumeConsultationPayment');
 
-  function consultationHeaders(){
-    return {'Content-Type':'application/json',Authorization:'Bearer '+consultationAccess.token};
+  function consultationHeaders(access = consultationAccess){
+    return {'Content-Type':'application/json',Authorization:'Bearer '+access.token};
+  }
+
+  function isConsultationReturn(url){
+    return url.searchParams.has('consultation_payment') ||
+      (url.hash==='#consultation' && (url.searchParams.has('payment') || url.searchParams.has('session_id')));
+  }
+
+  function clearConsultationReturn(){
+    const url=new URL(window.location.href);
+    if(!isConsultationReturn(url))return;
+    for(const key of ['consultation_payment','payment','session_id'])url.searchParams.delete(key);
+    window.history.replaceState(window.history.state,'',url);
   }
 
   async function refreshConsultationStatus(){
-    if(!consultationAccess?.id || statusInFlight)return;
+    const access=consultationAccess || bookedAppointment?.access;
+    if(!access?.id || statusInFlight)return;
     statusInFlight=true;
-    const id=consultationAccess.id;
+    const {id}=access;
     try{
       const response=await fetch(BACKEND_URL+'/api/consultations/'+encodeURIComponent(id)+'/status',
-        {headers:consultationHeaders(),cache:'no-store'});
+        {headers:consultationHeaders(access),cache:'no-store'});
       if(!response.ok)throw new Error('status');
       const result=await response.json();
-      if(consultationAccess?.id!==id)return;
+      if(consultationAccess!==access && bookedAppointment?.access!==access)return;
       const confirmed=result.payment_status==='paid' && result.booking_status==='confirmed';
       const terminal=['failed','expired'].includes(result.payment_status) || result.booking_status==='booking_failed';
       const messages={
@@ -767,13 +784,20 @@
       document.getElementById('appointmentCard').hidden=!confirmed;
       if(confirmed){
         document.getElementById('appointmentTherapist').textContent = consultationProviderName;
-        bookedAppointment={meetUrl:result.meet_url,startTime:result.appointment_start,
-          endTime:result.appointment_end,joinAllowed:result.meet_available===true};
+        // Keep status access in this page only so the Meet join window still works.
+        bookedAppointment={access:{id,token:access.token},meetUrl:result.meet_url,
+          startTime:result.appointment_start,endTime:result.appointment_end,joinAllowed:result.meet_available===true};
         document.getElementById('appointmentStart').textContent=new Date(result.appointment_start).toLocaleString('th-TH',{timeZone:bookingTimezone});
         document.getElementById('appointmentEnd').textContent=new Date(result.appointment_end).toLocaleString('th-TH',{timeZone:bookingTimezone});
         document.getElementById('appointmentState').textContent='ยืนยันการนัดหมายแล้ว';
         joinConsultationBtn.disabled=!(bookedAppointment.joinAllowed && bookedAppointment.meetUrl);
         renderCountdown();
+        if(consultationAccess===access){
+          sessionStorage.removeItem(consultationStorageKey);
+          consultationAccess=null;
+          resetConsultationForm();
+          clearConsultationReturn();
+        }
       }else if(terminal && result.payment_status!=='paid'){
         consultationAccess=null;
         sessionStorage.removeItem(consultationStorageKey);
@@ -795,10 +819,8 @@
       if(!consultationAccess?.id)return;
       bookConsultationBtn.disabled=true;
       const returnUrl=new URL(window.location.href);
-      if(returnUrl.searchParams.has('consultation_payment')){
+      if(isConsultationReturn(returnUrl)){
         consultationStatus.textContent='กำลังตรวจสอบการชำระเงินและยืนยันนัดหมาย…';
-        returnUrl.searchParams.delete('consultation_payment');
-        window.history.replaceState(null,'',returnUrl);
         showTab('consultation');
       }
       consultationPoll=setInterval(refreshConsultationStatus,3500);
@@ -890,7 +912,7 @@
       consultationStatus.className='status bad';
       consultationStatus.textContent='ไม่สามารถดำเนินการชำระเงินได้ กรุณาลองอีกครั้ง';
     }finally{
-      if(!consultationPoll)bookConsultationBtn.disabled=Boolean(consultationAccess?.id);
+      if(!consultationPoll)bookConsultationBtn.disabled=Boolean(consultationAccess?.id || bookedAppointment);
     }
   });
 

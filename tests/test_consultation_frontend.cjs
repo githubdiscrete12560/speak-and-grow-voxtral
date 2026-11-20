@@ -9,15 +9,6 @@ assert.equal(ids.length, new Set(ids).size, 'Duplicate HTML IDs');
 const scripts = [...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(match => match[1]);
 for (const script of scripts) new vm.Script(script);
 const script = scripts.find(text => text.includes('const consultationForm'));
-const elements = Object.fromEntries(ids.map(id => [id, {
-  value:'', checked:false, disabled:false, hidden:false, required:false,
-  listeners:{}, options:[], textContent:'',
-  addEventListener(name, fn){this.listeners[name]=fn;},
-  replaceChildren(...options){this.options=options;this.value=options[0]?.value||'';},
-  add(option){this.options.push(option);},
-  reportValidity(){return true;}
-}]));
-elements.childAgeRange.value='20+ years';
 let payload;
 const storage = new Map();
 let checkoutMode=false, checkoutCalls=0, redirect, tab;
@@ -25,31 +16,64 @@ const statusResult={payment_status:'pending_payment',booking_status:'pending_pay
   appointment_start:new Date(Date.now()+86400000).toISOString(),
   appointment_end:new Date(Date.now()+89400000).toISOString(),meet_available:false};
 const success=data=>({ok:true,json:async()=>({...data})});
-const context = vm.createContext({
-  document:{querySelector(selector){
-    assert.equal(selector,'#psychologist .profile-name');
-    return {textContent:profileName};
-  },getElementById(id){assert.ok(elements[id], `Missing ID ${id}`);return elements[id];}},
-  window:{addEventListener(){},location:{href:'https://example.com/?consultation_payment=return#consultation',
-    assign(url){redirect=url;}},history:{replaceState(){}}}, URL, showTab(id){tab=id;}, Date, Intl, Object, Math, Number, Uint8Array, TextEncoder,
-  crypto:require('node:crypto').webcrypto,
-  sessionStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
-
-  Option:function(text,value){this.text=text;this.value=value;},
-  setInterval(){return 1;}, clearInterval(){}, BACKEND_URL:'http://test',
-  async fetch(url, options){
-    assert.match(options.headers.Authorization,/^Bearer /);
-    if(url.endsWith('/status'))return success(statusResult);
-    if(url.endsWith('/stripe-checkout')){
-      checkoutCalls++;
-      return success({checkout_url:'https://checkout.stripe.com/c/pay/synthetic'});
+const statusRequests = [];
+const storageKey = 'bsj_consultation_checkout';
+const bookStorageKey = 'speak-grow-order-session-v1';
+storage.set(bookStorageKey,'book-token');
+function createPage(href='https://example.com/'){
+  const elements = Object.fromEntries(ids.map(id => [id, {
+    value:'', checked:false, disabled:false, hidden:false, required:false,
+    listeners:{}, options:[], textContent:'',
+    addEventListener(name, fn){this.listeners[name]=fn;},
+    replaceChildren(...options){this.options=options;this.value=options[0]?.value||'';},
+    add(option){this.options.push(option);},
+    reportValidity(){return true;}
+  }]));
+  elements.appointmentCard.hidden=true;
+  elements.consultationForm.reset=()=>{
+    for(const id of ['appointmentDate','appointmentTime','consultationReason','guardianName',
+      'guardianEmail','legalGuardianName','legalGuardianEmail','guardianRelationship']){
+      elements[id].value='';
     }
-    payload=JSON.parse(options.body);
-    return checkoutMode?success({consultation_id:'cslt_synthetic',payment_status:'pending_payment'}):
-      {ok:false,status:400,json:async()=>({detail:'test'})};
-  }
-});
-vm.runInContext(script.slice(script.indexOf('  const consultationForm'), script.indexOf('  function speak(')), context);
+    elements.consultationConsent.checked=false;
+    elements.guardianConsent.checked=false;
+    elements.childAgeRange.value='20+ years';
+  };
+  const context = vm.createContext({
+    document:{querySelector(selector){
+      assert.equal(selector,'#psychologist .profile-name');
+      return {textContent:profileName};
+    },getElementById(id){assert.ok(elements[id], `Missing ID ${id}`);return elements[id];}},
+    window:{addEventListener(){},location:{href,
+      assign(url){redirect=url;}},history:{state:{other:'keep'},replaceState(state, _, url){
+        assert.deepEqual(state,{other:'keep'});
+        this.lastUrl=String(url);
+        context.window.location.href=this.lastUrl;
+      }}}, URL, showTab(id){tab=id;}, Date, Intl, Object, Math, Number, Uint8Array, TextEncoder,
+    crypto:require('node:crypto').webcrypto,
+    sessionStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value),removeItem:key=>storage.delete(key)},
+
+    Option:function(text,value){this.text=text;this.value=value;},
+    setInterval(){return 1;}, clearInterval(){}, BACKEND_URL:'http://test',
+    async fetch(url, options){
+      assert.match(options.headers.Authorization,/^Bearer /);
+      if(url.endsWith('/status')){
+        statusRequests.push(options.headers.Authorization);
+        return success(statusResult);
+      }
+      if(url.endsWith('/stripe-checkout')){
+        checkoutCalls++;
+        return success({checkout_url:'https://checkout.stripe.com/c/pay/synthetic'});
+      }
+      payload=JSON.parse(options.body);
+      return checkoutMode?success({consultation_id:'cslt_synthetic',payment_status:'pending_payment'}):
+        {ok:false,status:400,json:async()=>({detail:'test'})};
+    }
+  });
+  vm.runInContext(script.slice(script.indexOf('  const consultationForm'), script.indexOf('  function speak(')), context);
+  return {context,elements};
+}
+let {context,elements}=createPage();
 function evaluate(code){return vm.runInContext(code,context);}
 function json(code){return JSON.parse(JSON.stringify(evaluate(code)));}
 assert.deepEqual(json("availableSlots('2026-10-12', new Date('2026-10-06T00:00:00Z'))"), [['19:10','20:00']]);
@@ -121,8 +145,12 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   assert.ok(access.token);
   assert.ok(!JSON.stringify(access).includes(elements.guardianEmail.value));
 
-  await evaluate('restoreConsultation(); refreshConsultationStatus()');
+  const returnUrl='https://example.com/?consultation_payment=return&payment=success&session_id=cs_test&utm_source=test#consultation';
+  ({context,elements}=createPage(returnUrl));
   await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(JSON.parse(storage.get(storageKey)).token,access.token);
+  assert.equal(statusRequests.at(-1),'Bearer '+access.token);
+  assert.equal(context.window.location.href,returnUrl);
   assert.equal(tab,'consultation');
   assert.equal(elements.appointmentCard.hidden,true);
   assert.equal(elements.resumeConsultationPayment.hidden,false);
@@ -135,6 +163,10 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   await evaluate('refreshConsultationStatus()');
   assert.equal(elements.appointmentCard.hidden,true);
   assert.equal(elements.resumeConsultationPayment.hidden,true);
+  ({context,elements}=createPage(returnUrl));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(elements.appointmentCard.hidden,true);
+  assert.equal(JSON.parse(storage.get(storageKey)).id,access.id);
   statusResult.booking_status='confirmed';
   await evaluate('refreshConsultationStatus()');
   assert.equal(elements.appointmentCard.hidden,false);
@@ -142,5 +174,39 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   assert.equal(elements.appointmentTherapist.textContent,profileName);
   assert.equal(elements.consultationStatus.textContent,'ยืนยันการนัดหมายแล้ว');
   assert.equal(elements.joinConsultation.disabled,true);
+  assert.equal(storage.has(storageKey),false);
+  assert.equal(evaluate('consultationAccess'),null);
+  assert.equal(context.window.location.href,'https://example.com/?utm_source=test#consultation');
+  assert.equal(storage.get(bookStorageKey),'book-token');
+
+  statusResult.meet_available=true;
+  statusResult.meet_url='https://meet.google.com/example';
+  await evaluate('refreshConsultationStatus()');
+  assert.equal(statusRequests.at(-1),'Bearer '+access.token);
+  assert.equal(elements.joinConsultation.disabled,false);
+  assert.equal(storage.has(storageKey),false);
+
+  const previousRequests=statusRequests.length;
+  ({context,elements}=createPage(context.window.location.href));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(statusRequests.length,previousRequests);
+  assert.equal(elements.appointmentCard.hidden,true);
+  assert.equal(elements.bookConsultation.disabled,false);
+  for(const field of ['appointmentDate','appointmentTime','consultationReason','legalGuardianName',
+    'legalGuardianEmail','guardianRelationship']){
+    assert.equal(elements[field].value,'');
+  }
+  assert.equal(elements.consultationConsent.checked,false);
+  assert.equal(elements.guardianConsent.checked,false);
+  assert.equal(elements.childAgeRange.value,'20+ years');
+  assert.equal(elements.guardianConsentSection.hidden,true);
+  assert.match(elements.consultationFee.textContent,/499/);
+
+  const bookReturn='https://example.com/?payment=success&session_id=book';
+  storage.set(storageKey,JSON.stringify(access));
+  ({context,elements}=createPage(bookReturn));
+  await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(context.window.location.href,bookReturn);
+  assert.equal(storage.get(bookStorageKey),'book-token');
   console.log('Frontend checks passed: script initialization, IDs, Bangkok slots, date limits, consent switching, payloads.');
 })().catch(error=>{console.error(error);process.exitCode=1;});
