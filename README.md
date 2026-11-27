@@ -126,6 +126,10 @@ Git deployment:
 
 Manual deployment: set `frontend/config.js` to the Cloud Run URL, run `npm ci` and `npm run build` from `frontend`, then drag `frontend/dist` into Netlify Deploys. `config.example.js` shows production syntax. The SPA fallback loads `index.html`; WebSockets are not proxied through Netlify.
 
+## Image credit
+
+Hero photo by [Jared Rice on Unsplash](https://unsplash.com/photos/woman-doing-yoga-meditation-on-brown-parquet-flooring-NTyBbu66_SI). The desktop and mobile WebP files are crops of the same photograph.
+
 ## Verification
 
 ```powershell

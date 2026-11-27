@@ -3,7 +3,19 @@
 #books h2,#books h3{line-height:1.5}
 #books h2{margin:.65rem 0 0}
 #books button:focus-visible,#books a:focus-visible{outline:3px solid var(--primary-dark);outline-offset:3px}
-.books-heading{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+#books .books-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 1.35rem;
+  margin-bottom: 1.35rem;
+}
 .books-series-note{color:var(--primary-dark);font-weight:750}
 .book-cover-wrap{padding:clamp(1rem,3vw,1.7rem);background:#f3f1f5}
 .book-cover{--cover-bg:#e2eee5;--cover-ink:#2e5947;position:relative;min-height:22rem;display:flex;flex-direction:column;padding:1.3rem 1.15rem 1.2rem 1.5rem;background:var(--cover-bg);color:var(--cover-ink);border-radius:3px 12px 12px 3px;box-shadow:5px 8px 15px #24304726;border-left:7px solid var(--cover-ink);isolation:isolate}
