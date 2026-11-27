@@ -64,11 +64,11 @@ THERAPIST_NAME=
 THERAPIST_EMAIL=janphenphusopha@gmail.com
 APP_TIMEZONE=Asia/Bangkok
 SESSION_SECRET=
-FRONTEND_PUBLIC_URL=https://sabaijai.netlify.app
+FRONTEND_PUBLIC_URL=https://sabaijaijing.netlify.app
 BACKEND_PUBLIC_URL=https://YOUR_CLOUD_RUN_DOMAIN
-FRONTEND_ORIGINS=https://sabaijai.netlify.app
-STRIPE_SUCCESS_URL=https://sabaijai.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}
-STRIPE_CANCEL_URL=https://sabaijai.netlify.app/?payment=cancelled
+FRONTEND_ORIGINS=https://sabaijaijing.netlify.app
+STRIPE_SUCCESS_URL=https://sabaijaijing.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}
+STRIPE_CANCEL_URL=https://sabaijaijing.netlify.app/?payment=cancelled
 ```
 
 Store `MISTRAL_API_KEY`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, and OAuth token credentials in Secret Manager. `GOOGLE_CLIENT_ID` can also be a secret. Never put these values in Netlify or `config.js`; the public Cloud Run URL is the only frontend configuration.

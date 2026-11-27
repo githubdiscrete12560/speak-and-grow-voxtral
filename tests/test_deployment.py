@@ -19,7 +19,7 @@ from backend import backend
 
 @pytest.fixture
 def cors_client(monkeypatch):
-    monkeypatch.setenv("FRONTEND_ORIGINS", "https://sabaijai.netlify.app")
+    monkeypatch.setenv("FRONTEND_ORIGINS", "https://sabaijaijing.netlify.app")
     origins = backend.configured_frontend_origins()
     app = FastAPI()
     app.add_middleware(
@@ -39,8 +39,8 @@ def cors_client(monkeypatch):
 
 
 def test_cors_allowed_origin_and_credentials(cors_client):
-    response = cors_client.get("/health", headers={"Origin": "https://sabaijai.netlify.app"})
-    assert response.headers["access-control-allow-origin"] == "https://sabaijai.netlify.app"
+    response = cors_client.get("/health", headers={"Origin": "https://sabaijaijing.netlify.app"})
+    assert response.headers["access-control-allow-origin"] == "https://sabaijaijing.netlify.app"
     assert response.headers["access-control-allow-credentials"] == "true"
 
 
@@ -52,18 +52,18 @@ def test_cors_rejected_origin(cors_client, origin):
 
 def test_cors_preflight(cors_client):
     response = cors_client.options("/health", headers={
-        "Origin": "https://sabaijai.netlify.app",
+        "Origin": "https://sabaijaijing.netlify.app",
         "Access-Control-Request-Method": "GET",
         "Access-Control-Request-Headers": "Authorization",
     })
     assert response.status_code == 200
-    assert response.headers["access-control-allow-origin"] == "https://sabaijai.netlify.app"
+    assert response.headers["access-control-allow-origin"] == "https://sabaijaijing.netlify.app"
 
 
 def test_websocket_allowed_origins_and_rejection():
-    with patch.dict(os.environ, {"FRONTEND_ORIGINS": "https://sabaijai.netlify.app,http://localhost:5500", "MISTRAL_API_KEY": ""}):
+    with patch.dict(os.environ, {"FRONTEND_ORIGINS": "https://sabaijaijing.netlify.app,http://localhost:5500", "MISTRAL_API_KEY": ""}):
         with TestClient(backend.app) as client:
-            for origin in ("https://sabaijai.netlify.app", "http://localhost:5500"):
+            for origin in ("https://sabaijaijing.netlify.app", "http://localhost:5500"):
                 with client.websocket_connect("/ws/pronunciation", headers={"origin": origin}) as websocket:
                     assert websocket.receive_json()["type"] == "error"
             with pytest.raises(WebSocketDisconnect) as closed:
@@ -78,12 +78,12 @@ def test_oauth_callback_redirects_to_frontend():
         def fetch_token(self, **kwargs):
             pass
     with TestClient(backend.app, follow_redirects=False) as client, \
-         patch.dict(os.environ, {"FRONTEND_PUBLIC_URL": "https://sabaijai.netlify.app"}), \
+         patch.dict(os.environ, {"FRONTEND_PUBLIC_URL": "https://sabaijaijing.netlify.app"}), \
          patch.object(backend, "create_google_oauth_flow", return_value=Flow()), \
          patch.object(backend, "save_google_credentials"):
         client.cookies.set(backend.SESSION_COOKIE_NAME, _signed_session({"google_oauth_state": "state", "google_code_verifier": "verifier"}))
         response = client.get("/auth/google/callback?state=state&code=code")
-    assert response.headers["location"] == "https://sabaijai.netlify.app/?google_calendar=connected"
+    assert response.headers["location"] == "https://sabaijaijing.netlify.app/?google_calendar=connected"
 
 
 def _signed_session(values):
