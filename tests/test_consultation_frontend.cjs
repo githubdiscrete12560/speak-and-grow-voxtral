@@ -95,6 +95,7 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   elements.appointmentDate.listeners.change();
   assert.ok(elements.appointmentTime.options.length);
   assert.ok(elements.appointmentTime.options[0].text.includes('–'));
+  assert.ok(elements.consultationSlotSummary.textContent.includes(elements.appointmentTime.options[0].text));
   elements.guardianName.value='Client Example';
   elements.guardianEmail.value='client@example.com';
   elements.consultationReason.value='General consultation request';
@@ -161,6 +162,7 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   statusResult.payment_status='paid';
   statusResult.booking_status='calendar_pending';
   await evaluate('refreshConsultationStatus()');
+  assert.equal(elements.consultationStatus.className,'status creating-appointment');
   assert.equal(elements.appointmentCard.hidden,true);
   assert.equal(elements.resumeConsultationPayment.hidden,true);
   ({context,elements}=createPage(returnUrl));
@@ -176,6 +178,7 @@ async function submit(){await elements.consultationForm.listeners.submit({preven
   assert.equal(elements.joinConsultation.disabled,true);
   assert.equal(storage.has(storageKey),false);
   assert.equal(evaluate('consultationAccess'),null);
+  assert.equal(elements.consultationSlotSummary.textContent,'กรุณาเลือกวันและเวลา');
   assert.equal(context.window.location.href,'https://example.com/?utm_source=test#consultation');
   assert.equal(storage.get(bookStorageKey),'book-token');
 

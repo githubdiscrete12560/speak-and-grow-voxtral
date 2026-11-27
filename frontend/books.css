@@ -43,3 +43,34 @@
 #bookQrArea h4{line-height:1.5}
 #bookOrderReference{overflow-wrap:anywhere}
 #bookPaymentPanel button{margin:.35rem .2rem .35rem 0}
+
+/* The illustrated covers retain their individual color and type treatments. */
+.book-category {
+  align-self: flex-start;
+  margin-bottom: .65rem;
+  padding: .25rem .65rem;
+  border-radius: 999px;
+  background: var(--lavender);
+  color: var(--primary-dark);
+  font-size: .85rem;
+  font-weight: 700;
+}
+.book-card { transition: transform .18s ease, box-shadow .18s ease; }
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .book-card:hover { transform: translateY(-2px); box-shadow: var(--shadow); }
+}
+.book-details h3 { font-size: 1.22rem; }
+.book-buy-row strong { font-size: 1.15rem; color: var(--primary-dark); }
+.cart-total {
+  padding: .85rem 1rem;
+  border-radius: 1rem;
+  background: var(--lavender);
+}
+.cart-total strong { font-size: 1.35rem; text-align: right; }
+.cart-card > .btn { width: 100%; }
+@media (min-width: 48rem) {
+  .books-order-layout:has(> #bookCheckout[hidden]) > #bookCart {
+    grid-column: 1 / -1;
+    width: min(100%, 42rem);
+  }
+}

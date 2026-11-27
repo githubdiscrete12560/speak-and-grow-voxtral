@@ -120,7 +120,7 @@
       button.setAttribute('aria-label',`เพิ่มลงตะกร้า ${book.title}`);
       button.addEventListener('click',() => changeQuantity(book.id,(cart[book.id]||0)+1));
       buy.append(node('strong','',money(book.price)),button);
-      details.append(node('h3','',book.title),node('p','book-author',book.author),node('p','book-description',book.description),buy);
+      details.append(node('span','book-category',book.category),node('h3','',book.title),node('p','book-author',book.author),node('p','book-description',book.description),buy);
       article.append(wrap,details);
       return article;
     }));

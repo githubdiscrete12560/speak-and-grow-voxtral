@@ -27,7 +27,7 @@
   header{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.96);border-bottom:1px solid var(--border);backdrop-filter:blur(12px)}
   .brand{display:flex;align-items:center;gap:.75rem;font-weight:800;white-space:nowrap}
   .logo{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:var(--lavender);font-size:1.5rem}
-  .tab{min-height:44px;border:0;background:transparent;color:var(--muted);padding:.7rem .9rem;border-radius:12px;white-space:nowrap;font-weight:650}
+  .tab{min-height:44px;border:0;background:transparent;color:var(--muted);padding:.6rem 1rem;border-radius:999px;white-space:nowrap;font-weight:650}
   .tab:hover,.tab:focus-visible{background:var(--lavender);color:var(--primary-dark)}
   .tab.active{background:var(--primary);color:#fff}
   .panel{display:none}
@@ -47,10 +47,11 @@
   h3{font-size:1.2rem}
   .lead{font-size:1.1rem;color:var(--muted);max-width:65ch}
   .actions{display:flex;gap:.7rem;flex-wrap:wrap;margin-top:1.3rem}
-  .btn{min-height:44px;border:0;border-radius:14px;padding:.85rem 1.05rem;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:.45rem;text-decoration:none}
+  .btn{min-height:44px;border:0;border-radius:999px;padding:.7rem 1.2rem;font-weight:750;display:inline-flex;align-items:center;justify-content:center;gap:.45rem;text-decoration:none}
   .btn.primary{background:var(--primary);color:#fff}
   .btn.primary:hover{background:var(--primary-dark)}
-  .btn.secondary{background:var(--lavender);color:var(--primary-dark)}
+  .btn.secondary{background:transparent;border:1px solid #aaa2bd;color:var(--primary-dark)}
+  .btn.secondary:hover:not(:disabled){background:var(--lavender)}
   .btn.warning{background:var(--accent);color:#4b3200}
   .btn:disabled{opacity:.5;cursor:not-allowed}
   .mascot{min-height:315px;display:grid;place-items:center;background:linear-gradient(145deg,var(--lavender),#fff7e7);position:relative;overflow:hidden}
@@ -183,14 +184,25 @@
   button, a.btn { transition: background-color .18s ease, color .18s ease; }
   .tab[data-tab="consultation"] { background: var(--primary); color: white; }
   .tab[data-tab="consultation"]:hover { background: var(--primary-dark); }
-  .tab.active { box-shadow: inset 0 -3px 0 #c9b8e6; }
+  .tab.active:not([data-tab="consultation"]) { background: var(--lavender); color: var(--primary-dark); }
+  .tab[data-tab="consultation"].active { box-shadow: inset 0 0 0 2px #b8aed7; }
   .brand .logo { flex: none; }
   .eyebrow { color: #31523c; }
   .section-head h2 { margin: .65rem 0 .45rem; }
-  .hero-copy h1 { max-width: 16ch; font-size: clamp(2.3rem, 5.2vw, 4.4rem); line-height: 1.22; text-wrap: balance; }
+  .hero-copy h1 { max-width: 17ch; font-size: clamp(2.4rem, 5.3vw, 4.5rem); line-height: 1.22; text-wrap: balance; }
   .hero-copy .lead { max-width: 52ch; }
   .hero-copy .clinical { margin-bottom: 0; font-size: .94rem; }
-  .encouragement-panel { position: relative; isolation: isolate; overflow: hidden; }
+  .encouragement-panel {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    min-height: clamp(22rem, 42vw, 36rem);
+    background: linear-gradient(145deg, #eaf1e6 48%, #e7e2ee);
+    border: 1px solid #d5dfd3;
+  }
+  .botanical-mark { display: block; font-size: 2.25rem; margin-bottom: 1rem; }
+  .home-topics { margin-top: clamp(2rem, 6vw, 4rem); }
+  #home .home-topics .mini { padding: clamp(1.2rem, 2.4vw, 2rem); box-shadow: none; }
   .encouragement-panel::before {
     content: "";
     position: absolute;
@@ -218,15 +230,55 @@
   .encouragement-message p { color: #394e43; }
   .encouragement-message .encouragement-signoff { font-weight: 750; margin-top: 1.25rem; }
   #psychologist .portrait { background: #e8eee5; }
-  #psychologist .profile-name { text-wrap: balance; }
+  #psychologist .profile-name { font-size: clamp(1.35rem, 2.6vw, 2rem); text-wrap: balance; }
   .form-step { border: 0; border-top: 1px solid var(--border); margin: 1.5rem 0 0; padding: .3rem 0 0; min-width: 0; }
   .form-step:first-child { margin-top: 0; }
   .form-step legend { font-size: 1.18rem; font-weight: 750; padding-right: .45rem; }
   .checkout-summary { padding: 1rem; background: var(--lavender); border-radius: 1rem; margin-top: 1.5rem; }
-  .checkout-summary .status { padding: 0; font-weight: 750; }
   .checkout-summary h3 { margin: 0; }
   .appointment-grid div, .consultation-details, .form-step { overflow-wrap: anywhere; }
-  @media (min-width: 64rem) { #psychologist .portrait { position: sticky; top: 7rem; } }
+  .section-intro {
+    padding: clamp(1.25rem, 4vw, 3.25rem);
+    border-radius: 1.75rem;
+    border: 1px solid var(--border);
+    margin-bottom: clamp(1.5rem, 4vw, 3rem);
+    background: white;
+  }
+  .section-intro h2 { font-size: clamp(2rem, 4.5vw, 3.8rem); line-height: 1.25; }
+  .intro-subtitle { margin: .5rem 0; font-size: clamp(1.15rem, 2vw, 1.45rem); font-weight: 700; }
+  .profile-intro { background: #f0f4ed; }
+  .donation-intro { background: #eeedf5; }
+  .consultation-intro { background: #edf1e9; }
+  .section-intro .lead:last-child { margin-bottom: 0; }
+  .service-facts { display: flex; flex-wrap: wrap; gap: .5rem; padding: 0; list-style: none; }
+  .service-facts li { padding: .3rem .75rem; background: white; border-radius: 999px; }
+  .donation > article { background: #f5f0fa; }
+  .amounts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .amount { padding-inline: .3rem; }
+  .form-step { margin-top: 1.9rem; }
+  .checkout-summary { padding: clamp(1rem, 2.5vw, 1.65rem); }
+  .checkout-summary .btn { width: 100%; }
+  .fee-display { color: var(--primary-dark); font-size: clamp(1.15rem, 2.2vw, 1.65rem); font-weight: 800; }
+  .payment-details { display: grid; gap: .6rem; margin: 1rem 0; }
+  .payment-details div { padding: .65rem .85rem; background: #fff; border-radius: .75rem; }
+  .payment-details dt { font-weight: 700; }
+  .payment-details dd { margin: 0; }
+  .booking-status-block { margin-bottom: 1.4rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border); }
+  .booking-status-block .status { font-weight: 700; border-radius: .85rem; }
+  .status.awaiting-payment { background: #fff1d8; color: #694919; }
+  .status.checking-payment { background: #eae6f6; color: #463569; }
+  .status.creating-appointment { background: #e2eee3; color: #31523c; }
+  .appointment-card { background: #ecf4ed; border-color: #b9cabb; padding: clamp(1rem, 2vw, 1.5rem); }
+  .appointment-card h3 { color: #274e3a; line-height: 1.45; }
+  .appointment-card h3 span { margin-inline-end: .3rem; }
+  footer { background: white; padding: 2rem 0; }
+  .footer-inner { text-align: start; }
+  @media (min-width: 64rem) and (min-height: 52rem) {
+    #psychologist .portrait, .consultation-details:has(#appointmentCard[hidden]) { position: sticky; top: 10rem; }
+  }
+  @media (min-width: 80rem) and (min-height: 52rem) {
+    #psychologist .portrait, .consultation-details:has(#appointmentCard[hidden]) { top: 7rem; }
+  }
   @media (prefers-reduced-motion: reduce) {
     html { scroll-behavior: auto; }
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
