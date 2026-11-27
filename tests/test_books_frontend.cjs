@@ -85,14 +85,14 @@ function click(button){assert.ok(button);assert.equal(button.disabled,false);ret
 async function submit(state){await state.elements.bookBuyerForm.listeners.submit({preventDefault(){}});}
 // Execute the actual navigation logic with all existing and new tab/panel IDs.
 const inline=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(match=>match[1]).find(text=>text.includes('function showTab'));
-function navElement(id,tab){return {id,dataset:{tab},active:false,listeners:{},classList:{toggle(name,active){this.owner.active=active;}},addEventListener(name,fn){this.listeners[name]=fn;}};}
+function navElement(id,tab){return {id,dataset:{tab},active:false,listeners:{},attributes:{},setAttribute(name,value){this.attributes[name]=value;},removeAttribute(name){delete this.attributes[name];},classList:{toggle(name,active){this.owner.active=active;}},addEventListener(name,fn){this.listeners[name]=fn;}};}
 const tabs=[...html.matchAll(/class="tab(?: active)?" data-tab="([^"]+)"/g)].map(match=>navElement(null,match[1]));
 const panels=[...html.matchAll(/<section id="([^"]+)" class="panel/g)].map(match=>navElement(match[1]));
 for(const element of [...tabs,...panels])element.classList.owner=element;
 const navContext=vm.createContext({document:{querySelectorAll:selector=>selector==='.tab'?tabs:selector==='.panel'?panels:[]},window:{scrollTo(){}}});
 vm.runInContext(inline.slice(inline.indexOf('  const tabs'),inline.indexOf('  const consultationForm')),navContext);
 assert.deepEqual(tabs.map(tab=>tab.dataset.tab),['home','psychologist','books','donation','consultation']);
-for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>panel.active).length,1);assert.equal(panels.find(panel=>panel.active).id,tab.dataset.tab);}
+for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>panel.active).length,1);assert.equal(panels.find(panel=>panel.active).id,tab.dataset.tab);assert.deepEqual(tabs.filter(item=>item.attributes['aria-current']==='true'),[tab]);}
 (async()=>{
   const mixed=setup(JSON.stringify({guidance:1,counseling:2,skills:3}));
   assert.equal(mixed.elements.bookCartTotal.textContent,'1,247 \u0e1a\u0e32\u0e17');

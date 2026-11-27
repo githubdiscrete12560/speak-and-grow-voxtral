@@ -103,18 +103,18 @@
   ];
   function renderCatalog(){
     el('bookCatalog').replaceChildren(...BOOKS.map((book,index) => {
-      const article=node('article','book-card');
+      const article=node('article','book-card tw:flex tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded-3xl tw:border tw:border-line tw:bg-white tw:shadow-sm');
       const wrap=node('div','book-cover-wrap');
       const cover=node('div',`book-cover ${book.theme}`);
       cover.setAttribute('aria-hidden','true'); // Full title and author repeated below.
       const top=node('div','book-cover-top');
-      top.append(node('span','',book.category),node('span','book-cover-number',String(index+1).padStart(2,'0')));
+      top.append(node('span','',book.category));
       const art=node('div','book-cover-art');
       art.innerHTML=`<svg viewBox="0 0 160 84" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" aria-hidden="true">${motifs[index]}</svg>`;
       cover.append(top,node('h3','',book.title),node('p','book-cover-tagline',book.tagline),art,node('p','book-cover-author',book.author),node('span','book-cover-price',money(book.price)));
       wrap.append(cover);
-      const details=node('div','book-details');
-      const buy=node('div','book-buy-row');
+      const details=node('div','book-details tw:flex tw:flex-1 tw:flex-col tw:p-5');
+      const buy=node('div','book-buy-row tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-2');
       const button=node('button','btn primary','เพิ่มลงตะกร้า');
       button.type='button';button.dataset.bookAdd=book.id;
       button.setAttribute('aria-label',`เพิ่มลงตะกร้า ${book.title}`);

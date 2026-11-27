@@ -1,0 +1,11 @@
+{
+  "name": "safe-zone-frontend",
+  "private": true,
+  "scripts": {
+    "build": "tailwindcss -i site.css -o dist/site.css --minify && node build.mjs"
+  },
+  "devDependencies": {
+    "tailwindcss": "4.1.18",
+    "@tailwindcss/cli": "4.1.18"
+  }
+}

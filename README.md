@@ -29,10 +29,12 @@ Terminal 2:
 
 ```powershell
 cd frontend
-python -m http.server 5500
+npm.cmd ci
+npm.cmd run build
+python -m http.server 5500 --directory dist
 ```
 
-Keep `frontend/config.js` set to `http://localhost:8000`. Development server settings are:
+Use `http://localhost:8000` in `frontend/config.js` for local backend testing and rebuild after changing it. Development server settings are:
 
 ```dotenv
 ENVIRONMENT=development
@@ -119,10 +121,10 @@ Calendar OAuth runs on Cloud Run, so a Netlify hostname change only changes the 
 Git deployment:
 
 1. Push this repository to GitHub and connect it in Netlify.
-2. Set Base directory to `frontend`, Publish directory to `.`, and no build command.
+2. Use base directory `frontend`, build command `npm run build`, and publish directory `dist` as configured in `netlify.toml`.
 3. Change or generate `config.js` with the deployed Cloud Run URL.
 
-Manual deployment: set `frontend/config.js` to the Cloud Run URL, then drag the `frontend` folder into Netlify Deploys. `config.example.js` shows production syntax. The SPA fallback loads `index.html`; WebSockets are not proxied through Netlify.
+Manual deployment: set `frontend/config.js` to the Cloud Run URL, run `npm ci` and `npm run build` from `frontend`, then drag `frontend/dist` into Netlify Deploys. `config.example.js` shows production syntax. The SPA fallback loads `index.html`; WebSockets are not proxied through Netlify.
 
 ## Verification
 
