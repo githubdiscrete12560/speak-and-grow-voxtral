@@ -87,7 +87,8 @@ def test_fee_checkout_and_no_calendar_before_payment(flow, monkeypatch, minor, a
     assert (price["unit_amount"], price["currency"]) == (amount, "thb")
     assert params["payment_method_types"] == methods.split(",")
     assert set(params["metadata"]) == {"payment_type", "consultation_id", "payment_reference"}
-    assert "consultation_payment=return" in params["success_url"]
+    assert params["success_url"] == "https://sabaijai.netlify.app/?consultation_payment=return#consultation"
+    assert params["cancel_url"] == "https://sabaijai.netlify.app/?consultation_payment=cancel#consultation"
     assert start(flow, data, headers)[0] == path
     sessions.create.assert_called_once()
     assert sum(coll == "consultation_orders" for coll, _ in repository.client.data) == 1

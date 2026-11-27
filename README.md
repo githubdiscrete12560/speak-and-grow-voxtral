@@ -61,15 +61,19 @@ GOOGLE_TOKEN_STORAGE=secret_manager
 GOOGLE_TOKEN_SECRET_NAME=speak-and-grow-google-token
 GCP_PROJECT_ID=
 THERAPIST_NAME=
-THERAPIST_EMAIL=
+THERAPIST_EMAIL=janphenphusopha@gmail.com
 APP_TIMEZONE=Asia/Bangkok
 SESSION_SECRET=
-FRONTEND_PUBLIC_URL=https://YOUR_NETLIFY_SITE.netlify.app
+FRONTEND_PUBLIC_URL=https://sabaijai.netlify.app
 BACKEND_PUBLIC_URL=https://YOUR_CLOUD_RUN_DOMAIN
-FRONTEND_ORIGINS=https://YOUR_NETLIFY_SITE.netlify.app
+FRONTEND_ORIGINS=https://sabaijai.netlify.app
+STRIPE_SUCCESS_URL=https://sabaijai.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}
+STRIPE_CANCEL_URL=https://sabaijai.netlify.app/?payment=cancelled
 ```
 
 Store `MISTRAL_API_KEY`, `GOOGLE_CLIENT_SECRET`, `SESSION_SECRET`, and OAuth token credentials in Secret Manager. `GOOGLE_CLIENT_ID` can also be a secret. Never put these values in Netlify or `config.js`; the public Cloud Run URL is the only frontend configuration.
+
+Both checkout flows read the Stripe return URL settings. Consultation checkout preserves the configured path and unrelated query parameters, replaces payment parameters with `consultation_payment=return` or `consultation_payment=cancel`, and adds `#consultation`. Orders with reserved Checkout parameters retain their original return URLs.
 
 The Cloud Run service account needs Secret Manager Secret Accessor. If the app creates the token secret or adds versions, grant a least-privilege custom role containing `secretmanager.secrets.get`, `secretmanager.secrets.create` (only if creation is desired), and `secretmanager.versions.add`. Do not grant Owner or Editor for this application.
 
@@ -107,6 +111,8 @@ https://YOUR_CLOUD_RUN_DOMAIN/auth/google/callback
 ```
 
 Keep `http://localhost:8000/auth/google/callback` for development and set `GOOGLE_REDIRECT_URI` to the Cloud Run callback in production. Reauthorize using `https://YOUR_CLOUD_RUN_DOMAIN/auth/google/login`. The therapist/calendar owner must remain a test user while the consent screen is in Testing mode. Testing-mode refresh tokens may expire, requiring reauthorization. Both Calendar event and FreeBusy scopes remain required.
+
+Calendar OAuth runs on Cloud Run, so a Netlify hostname change only changes the app return destination (FRONTEND_PUBLIC_URL). With GOOGLE_CALENDAR_ID=primary, new events use the primary calendar of the OAuth-authorized account. To use the new therapist account for future events, sign in with the therapist email above through the Cloud Run OAuth login. THERAPIST_EMAIL is a configuration reference. Calendar invitations use the email submitted in the booking, or the legal guardian email for clients under 20.
 
 ## Netlify
 

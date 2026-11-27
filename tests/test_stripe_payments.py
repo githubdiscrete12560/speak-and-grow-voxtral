@@ -18,8 +18,8 @@ def settings(monkeypatch):
     for name, value in {"STRIPE_SECRET_KEY": "sk_test_synthetic_only",
                         "STRIPE_WEBHOOK_SECRET": "whsec_synthetic_only",
                         "STRIPE_CURRENCY": "thb", "STRIPE_PAYMENT_METHOD_TYPES": "",
-                        "STRIPE_SUCCESS_URL": "https://example.com/?payment=success&session_id={CHECKOUT_SESSION_ID}",
-                        "STRIPE_CANCEL_URL": "https://example.com/?payment=cancelled"}.items():
+                        "STRIPE_SUCCESS_URL": "https://sabaijai.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}",
+                        "STRIPE_CANCEL_URL": "https://sabaijai.netlify.app/?payment=cancelled"}.items():
         monkeypatch.setenv(name, value)
 
 
@@ -67,7 +67,8 @@ def test_frozen_integer_prices_and_retries(client, repository, sdk, items, amoun
     assert [line["price_data"]["unit_amount"] for line in params["line_items"]] == [EXPECTED_PRICES[item["book_id"]] * 100 for item in items]
     assert sum(line["quantity"] * line["price_data"]["unit_amount"] for line in params["line_items"]) == amount
     assert "payment_method_types" not in params
-    assert params["success_url"].endswith("{CHECKOUT_SESSION_ID}")
+    assert params["success_url"] == "https://sabaijai.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}"
+    assert params["cancel_url"] == "https://sabaijai.netlify.app/?payment=cancelled"
     assert client.post(path, headers=headers(order)).json() == result.json()
     assert sdk.call_count == 1
     assert repository.records[created["order_id"]]["payment_status"] == "checkout_created"

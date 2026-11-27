@@ -84,8 +84,8 @@ Server configuration (placeholders are in `.env.example`):
 
 - Secret-backed: `STRIPE_SECRET_KEY=sk_test_...`, `STRIPE_WEBHOOK_SECRET=whsec_...`.
 - Normal variables: `STRIPE_CURRENCY=thb`, `STRIPE_SUCCESS_URL`, `STRIPE_CANCEL_URL`.
-- Example success: `https://example.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}`.
-- Example cancel: `https://example.netlify.app/?payment=cancelled`.
+- Example success: `https://sabaijai.netlify.app/?payment=success&session_id={CHECKOUT_SESSION_ID}`.
+- Example cancel: `https://sabaijai.netlify.app/?payment=cancelled`.
 - Optional `STRIPE_PAYMENT_METHOD_TYPES`: empty by default, allowing Stripe Dashboard
   dynamic payment methods. An explicit comma-separated list, such as card,promptpay,
   is available when required. Only `card` and `promptpay` are accepted; whitespace
