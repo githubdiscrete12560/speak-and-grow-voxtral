@@ -74,3 +74,26 @@
     width: min(100%, 42rem);
   }
 }
+
+.book-showcase { min-width: 0; }
+.book-showcase-heading h3 { margin: 0; font-size: clamp(1.3rem, 2vw, 1.65rem); }
+.carousel-control[aria-disabled="true"] { opacity: .55; cursor: default; }
+.book-carousel-track {
+  --book-gap: clamp(.8rem, 1.8vw, 1.5rem);
+  gap: var(--book-gap);
+  padding: .45rem .25rem 1rem;
+  margin-top: .6rem;
+  scroll-padding-inline: .25rem;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+}
+.book-carousel-card { flex-basis: 88%; }
+@media (min-width: 40rem) {
+  .book-carousel-card { flex-basis: calc((100% - var(--book-gap)) / 2); }
+}
+@media (min-width: 64rem) {
+  .book-carousel-card { flex-basis: calc((100% - 2 * var(--book-gap)) / 3); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .book-carousel-track { scroll-behavior: auto; }
+}

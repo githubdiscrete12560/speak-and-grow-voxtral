@@ -4,8 +4,10 @@ const html = fs.readFileSync('frontend/index.html', 'utf8');
 const home = html.match(/<section id="home"[^>]*>([\s\S]*?)<\/section>/)[1];
 
 assert.match(html, /<title>Safe Zone by พี่น้อย \| /);
-assert.match(html, /<div class="brand"><span class="logo" aria-hidden="true">[^<]+<\/span><span>Safe Zone by พี่น้อย<\/span><\/div>/);
+assert.match(html, /<div class="brand"><span class="logo" aria-hidden="true">[^<]+<\/span><span>Safe Zone by <span class="brand-name">พี่น้อย<\/span><\/span><\/div>/);
 assert.match(html, /<button class="tab active" data-tab="home" aria-current="true">เกี่ยวกับ Safe Zone by พี่น้อย<\/button>/);
+assert.match(html, /<\/nav>\s*<button class="tab" data-tab="consultation"[^>]*>นัดหมายปรึกษา<\/button>/);
+assert.match(home, /class="actions hero-actions"[\s\S]*?<button class="btn primary jump" data-target="consultation"[^>]*>[\s\S]*?<button class="btn secondary jump" data-target="psychologist"[^>]*>รู้จักผู้ให้คำปรึกษา<\/button>/);
 assert.match(home, /<h1>เกี่ยวกับ Safe Zone by พี่น้อย<\/h1>/);
 assert.equal((home.match(/Safe Zone by พี่น้อย/g) || []).length, 3);
 assert.ok(html.includes('ชำระเงินแล้ว แต่ไม่สามารถยืนยันนัดหมายได้ กรุณาติดต่อ Safe Zone by พี่น้อย'));

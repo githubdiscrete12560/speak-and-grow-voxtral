@@ -6,29 +6,42 @@ const html = fs.readFileSync('frontend/index.html','utf8');
 const source = fs.readFileSync('frontend/books.js','utf8');
 new vm.Script(source);
 const prices={guidance:250,health:300,counseling:350,learning:300,skills:99};
-assert.deepEqual(Object.fromEntries(JSON.parse(source.match(/const BOOKS = (\[[\s\S]*?\]);/)[1]).map(book=>[book.id,book.price])),prices);
+const books=JSON.parse(source.match(/const BOOKS = (\[[\s\S]*?\]);/)[1]);
+assert.deepEqual(Object.fromEntries(books.map(book=>[book.id,book.price])),prices);
 assert.ok(source.includes("'book-cover-price',money(book.price)"));
 assert.ok(source.includes("node('strong','',money(book.price))"));
 const ids = [...html.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]);
 assert.equal(new Set(ids).size,ids.length,'Duplicate IDs');
 assert.ok(html.includes('<script src="./books.js"></script>'));
 assert.ok(html.includes('<link rel="stylesheet" href="./books.css">'));
+assert.match(html, /id="bookCatalog"[^>]*book-carousel-track[^>]*role="region"[^>]*tabindex="0"/);
+for(const id of ['bookCarouselPrev','bookCarouselNext']){
+  assert.match(html, new RegExp('id="'+id+'"[^>]*aria-controls="bookCatalog"[^>]*aria-label='));
+}
 class Element {
   constructor(tag='div') {this.tagName=tag;this.children=[];this.dataset={};this.attributes={};this.listeners={};this.value='';this.disabled=false;this.hidden=false;this.textContent='';this.className='';}
   append(...children){this.children.push(...children);}
   replaceChildren(...children){this.children=[...children];}
   setAttribute(name,value){this.attributes[name]=value;}
+  getAttribute(name){return this.attributes[name] ?? null;}
   removeAttribute(name){delete this.attributes[name];delete this[name];}
   addEventListener(event,fn){this.listeners[event]=fn;}
   querySelectorAll(tag){return this.children.flatMap(child=>[...(child.tagName===tag?[child]:[]),...child.querySelectorAll(tag)]);}
   focus(){this.focused=true;}
   scrollIntoView(){}
+  getBoundingClientRect(){return {left:this.left};}
+  scrollBy({left}){
+    this.lastScroll=left;
+    this.scrollLeft=Math.max(0,Math.min(this.scrollWidth-this.clientWidth,this.scrollLeft+left));
+    this.listeners.scroll();
+  }
   reportValidity(){return true;}
 }
 function setup(saved='{}',storageThrows=false,session=null,sharedServer=null,search=''){
   const elements=Object.fromEntries(ids.map(id=>[id,new Element()]));
   for(const match of html.matchAll(/<[^>]*\bid="([^"]+)"[^>]*\bhidden[^>]*>/g))elements[match[1]].hidden=true;
   elements.books.classList={contains(){return true;}};
+  Object.assign(elements.bookCatalog,{scrollLeft:0,clientWidth:300,scrollWidth:900});
   let stored=saved, sessionValue=session, now=Date.now();
   const requests=[], intervals=[], redirects=[];
   const server=sharedServer || {orders:new Map(),count:0};
@@ -39,7 +52,7 @@ function setup(saved='{}',storageThrows=false,session=null,sharedServer=null,sea
     window:{APP_CONFIG:{backendUrl:'https://backend.example/'},location:{search,assign(url){redirects.push(url);}}},
     localStorage:{getItem(){if(storageThrows)throw Error('blocked');return stored;},setItem(key,value){if(storageThrows)throw Error('blocked');stored=value;}},
     sessionStorage:{getItem(){if(storageThrows)throw Error('blocked');return sessionValue;},setItem(key,value){if(storageThrows)throw Error('blocked');sessionValue=value;},removeItem(){sessionValue=null;}},
-    URL,URLSearchParams,AbortController,setTimeout,clearTimeout,setInterval(fn,ms){intervals.push({fn,ms});return intervals.length;},
+    ResizeObserver:class{observe(){}},URL,URLSearchParams,AbortController,setTimeout,clearTimeout,setInterval(fn,ms){intervals.push({fn,ms});return intervals.length;},
     async fetch(url,options={}){
       if(url.endsWith('/api/book-payment-methods'))return {json:async()=>({direct_promptpay:true})};
       const body=options.body?JSON.parse(options.body):undefined;
@@ -89,10 +102,18 @@ function navElement(id,tab){return {id,dataset:{tab},active:false,listeners:{},a
 const tabs=[...html.matchAll(/class="tab(?: active)?" data-tab="([^"]+)"/g)].map(match=>navElement(null,match[1]));
 const panels=[...html.matchAll(/<section id="([^"]+)" class="panel/g)].map(match=>navElement(match[1]));
 for(const element of [...tabs,...panels])element.classList.owner=element;
-const navContext=vm.createContext({document:{querySelectorAll:selector=>selector==='.tab'?tabs:selector==='.panel'?panels:[]},window:{scrollTo(){}}});
+const providerJump={dataset:{target:'psychologist'},addEventListener(event,fn){this[event]=fn;}};
+let focusedHeading;
+const navContext=vm.createContext({document:{
+  querySelectorAll:selector=>selector==='.tab'?tabs:selector==='.panel'?panels:selector==='.jump'?[providerJump]:[],
+  querySelector:selector=>({focus(){focusedHeading=selector;}})
+},window:{scrollTo(){}}});
 vm.runInContext(inline.slice(inline.indexOf('  const tabs'),inline.indexOf('  const consultationForm')),navContext);
 assert.deepEqual(tabs.map(tab=>tab.dataset.tab),['home','psychologist','books','donation','consultation']);
 for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>panel.active).length,1);assert.equal(panels.find(panel=>panel.active).id,tab.dataset.tab);assert.deepEqual(tabs.filter(item=>item.attributes['aria-current']==='true'),[tab]);}
+providerJump.click();
+assert.equal(panels.find(panel=>panel.active).id,'psychologist');
+assert.equal(focusedHeading,'#psychologist h2');
 (async()=>{
   const mixed=setup(JSON.stringify({guidance:1,counseling:2,skills:3}));
   assert.equal(mixed.elements.bookCartTotal.textContent,'1,247 \u0e1a\u0e32\u0e17');
@@ -110,7 +131,27 @@ for(const tab of tabs){tab.listeners.click();assert.equal(panels.filter(panel=>p
     assert.ok(texts(card).includes('รศ.ดร. จันทร์เพ็ญ ภูโสภา'));
     assert.ok(card.children[0].children[0].children.some(child=>child.innerHTML?.includes('<svg')));
   }
-  const addButtons=e.bookCatalog.querySelectorAll('button');
+  const {bookCatalog:track,bookCarouselPrev:prev,bookCarouselNext:next}=e;
+  for(const [index,card] of track.children.entries()){
+    card.left=index*150;
+    assert.ok(texts(card).includes(books[index].title));
+    assert.equal(card.querySelectorAll('button')[0].dataset.bookAdd,books[index].id);
+  }
+  assert.equal(prev.getAttribute('aria-disabled'),'true');
+  assert.equal(next.getAttribute('aria-disabled'),'false');
+  next.listeners.click();
+  assert.equal(track.lastScroll,150);
+  assert.equal(track.scrollLeft,150);
+  track.children[1].left=175;
+  prev.listeners.click();
+  assert.equal(track.lastScroll,-175,'Scroll distance follows the current rendered card spacing');
+  assert.equal(track.scrollLeft,0);
+  track.listeners.keydown({target:track,key:'ArrowRight',preventDefault(){}});
+  assert.equal(track.scrollLeft,175);
+  track.scrollLeft=600;
+  track.listeners.scroll();
+  assert.equal(next.getAttribute('aria-disabled'),'true');
+  const addButtons=track.querySelectorAll('button');
   click(addButtons[0]);click(addButtons[0]);click(addButtons[1]);
   assert.equal(e.bookCartTotal.textContent,'800 บาท');
   assert.equal(e.bookCartCount.textContent,'3 เล่ม');

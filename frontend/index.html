@@ -11,15 +11,15 @@
 <body>
 <a class="skip" href="#content">ข้ามไปยังเนื้อหา</a>
 <header>
-  <div class="nav-wrap tw:mx-auto tw:flex tw:max-w-7xl tw:flex-col tw:gap-2 tw:px-5 tw:py-3 tw:sm:px-6 tw:lg:px-10 tw:xl:flex-row tw:xl:items-center tw:xl:justify-between">
-    <div class="brand"><span class="logo" aria-hidden="true">🗣️</span><span>Safe Zone by พี่น้อย</span></div>
+  <div class="nav-wrap tw:mx-auto tw:max-w-7xl tw:px-5 tw:py-3 tw:sm:px-6 tw:lg:px-10">
+    <div class="brand"><span class="logo" aria-hidden="true">🗣️</span><span>Safe Zone by <span class="brand-name">พี่น้อย</span></span></div>
     <nav aria-label="เมนูหลัก" class="tw:flex tw:min-w-0 tw:gap-1 tw:overflow-x-auto tw:p-1">
       <button class="tab active" data-tab="home" aria-current="true">เกี่ยวกับ Safe Zone by พี่น้อย</button>
       <button class="tab" data-tab="psychologist">นักจิตวิทยาการปรึกษา</button>
       <button class="tab" data-tab="books">หนังสือ</button>
       <button class="tab" data-tab="donation">บริจาค</button>
-      <button class="tab" data-tab="consultation">นัดหมายปรึกษา</button>
     </nav>
+    <button class="tab" data-tab="consultation" type="button">นัดหมายปรึกษา</button>
   </div>
 </header>
 
@@ -30,9 +30,9 @@
         <span class="eyebrow">พื้นที่สำหรับการรับฟังและเติบโต</span>
         <h1>เกี่ยวกับ Safe Zone by พี่น้อย</h1>
         <p class="lead">ในยุคปัญญาประดิษฐ์และเทคโนโลยีดิจิทัล ชีวิตของเรามีความรวดเร็วและเชื่อมโยงกันมากขึ้น แต่ขณะเดียวกัน ความเครียด ความกดดันจากการเรียน การทำงาน ความสัมพันธ์ และการเปรียบเทียบตนเองกับผู้อื่นก็อาจเพิ่มขึ้นได้</p>
-        <div class="actions">
-          <button class="btn primary jump" data-target="consultation">นัดหมายปรึกษา</button>
-          <button class="btn secondary jump" data-target="psychologist">รู้จักผู้ให้คำปรึกษา</button>
+        <div class="actions hero-actions">
+          <button class="btn primary jump" data-target="consultation" type="button">นัดหมายปรึกษา</button>
+          <button class="btn secondary jump" data-target="psychologist" type="button">รู้จักผู้ให้คำปรึกษา</button>
         </div>
         <div class="notice clinical">เว็บไซต์นี้ให้ข้อมูลเพื่อการเรียนรู้ ไม่ใช้แทนการประเมิน การวินิจฉัย หรือการดูแลรักษาโดยผู้เชี่ยวชาญ</div>
       </div>
@@ -267,7 +267,16 @@
       <a class="btn secondary" href="#bookCart">ตะกร้าหนังสือ <span id="booksCartBadge">0</span></a>
     </div>
     <p class="lead">หนังสือชุดนี้เป็นผลงานของ รศ.ดร. จันทร์เพ็ญ ภูโสภา ครอบคลุมเนื้อหาด้านจิตวิทยา การแนะแนว สุขภาพจิต การให้คำปรึกษา และการประยุกต์ใช้ทฤษฎีทางจิตวิทยาในการจัดการเรียนการสอน เหมาะสำหรับครู นักศึกษา นักวิชาการ และผู้สนใจทั่วไป</p>
-    <div id="bookCatalog" class="books-grid tw:my-8 tw:grid tw:grid-cols-1 tw:gap-7 tw:sm:grid-cols-2 tw:lg:grid-cols-3"></div>
+    <div class="book-showcase tw:my-8">
+      <div class="book-showcase-heading tw:flex tw:flex-wrap tw:items-center tw:justify-between tw:gap-3">
+        <h3 id="bookShowcaseHeading">หนังสือแนะนำ</h3>
+        <div class="tw:flex tw:flex-wrap tw:gap-2">
+          <button id="bookCarouselPrev" class="btn secondary carousel-control" type="button" aria-controls="bookCatalog" aria-label="เลื่อนไปหนังสือก่อนหน้า" aria-disabled="true">ก่อนหน้า</button>
+          <button id="bookCarouselNext" class="btn secondary carousel-control" type="button" aria-controls="bookCatalog" aria-label="เลื่อนไปหนังสือถัดไป" aria-disabled="true">ถัดไป</button>
+        </div>
+      </div>
+      <div id="bookCatalog" class="book-carousel-track tw:flex tw:snap-x tw:snap-mandatory tw:overflow-x-auto" role="region" aria-labelledby="bookShowcaseHeading" tabindex="0"></div>
+    </div>
     <noscript><p class="notice">กรุณาเปิดใช้งาน JavaScript เพื่อดูหนังสือและใช้งานตะกร้า</p></noscript>
     <p id="booksNotice" class="small" role="status" aria-live="polite"></p>
     <div class="books-order-layout tw:mt-6 tw:grid tw:items-start tw:gap-5 tw:md:grid-cols-2">

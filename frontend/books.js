@@ -103,7 +103,7 @@
   ];
   function renderCatalog(){
     el('bookCatalog').replaceChildren(...BOOKS.map((book,index) => {
-      const article=node('article','book-card tw:flex tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded-3xl tw:border tw:border-line tw:bg-white tw:shadow-sm');
+      const article=node('article','book-card book-carousel-card tw:snap-start tw:shrink-0 tw:flex tw:min-w-0 tw:flex-col tw:overflow-hidden tw:rounded-3xl tw:border tw:border-line tw:bg-white tw:shadow-sm');
       const wrap=node('div','book-cover-wrap');
       const cover=node('div',`book-cover ${book.theme}`);
       cover.setAttribute('aria-hidden','true'); // Full title and author repeated below.
@@ -124,6 +124,34 @@
       article.append(wrap,details);
       return article;
     }));
+  }
+  function setupBookCarousel(){
+    const track = el('bookCatalog');
+    const previous = el('bookCarouselPrev');
+    const next = el('bookCarouselNext');
+
+    function updateControls(){
+      const end = track.scrollWidth - track.clientWidth;
+      previous.setAttribute('aria-disabled', String(track.scrollLeft <= 1));
+      next.setAttribute('aria-disabled', String(track.scrollLeft >= end - 1));
+    }
+    function move(direction, control){
+      const [first, second] = track.children;
+      if(!second || control.getAttribute('aria-disabled') === 'true')return;
+      const step = second.getBoundingClientRect().left - first.getBoundingClientRect().left;
+      track.scrollBy({left: direction * step});
+    }
+    previous.addEventListener('click', () => move(-1, previous));
+    next.addEventListener('click', () => move(1, next));
+    track.addEventListener('keydown', event => {
+      if(event.target !== track || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight'))return;
+      event.preventDefault();
+      if(event.key === 'ArrowLeft')move(-1, previous);
+      else move(1, next);
+    });
+    track.addEventListener('scroll', updateControls, {passive:true});
+    new ResizeObserver(updateControls).observe(track);
+    updateControls();
   }
   function renderSummary(items=lines(),amount=total()){
     const summary=el('bookCheckoutSummary');
@@ -319,7 +347,7 @@
   document.addEventListener('visibilitychange',()=>{
     if(!document.hidden && el('books').classList.contains('active'))refreshOrder();
   });
-  renderCatalog();renderCart();
+  renderCatalog();setupBookCarousel();renderCart();
   // Return query strings are display hints only. Status always comes from the API.
   const paymentReturn=new URLSearchParams(window.location?.search || '').get('payment');
   const returnMessage=paymentReturn==='success'?'ได้รับข้อมูลการชำระเงินแล้ว กำลังตรวจสอบสถานะ':paymentReturn==='cancelled'?'ยกเลิกการชำระเงินแล้ว คุณสามารถกลับไปดำเนินการชำระเงินใหม่ได้':'';
